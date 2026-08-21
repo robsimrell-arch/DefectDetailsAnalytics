@@ -1,0 +1,6 @@
+{
+  "network_share_dir": "\\\\bench.com\\cuidata\\HSV\\TestEng\\CUSTOMER_FVT\\DefectAnalysis",
+  "shared_data_dir": "\\\\bench.com\\cuidata\\HSV\\TestEng\\CUSTOMER_FVT\\DefectAnalysis\\data",
+  "port": 8080,
+  "comment": "Network share repository configuration"
+}

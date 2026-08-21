@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Defect Details Drill-Down Dashboard</title>
+  <link rel="icon" type="image/x-icon" href="assets/app_icon.ico">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/styles.css?v=8.4">
+  
+  <!-- Local Offline JS Libraries -->
+  <script src="lib/lucide.min.js"></script>
+  <script src="lib/xlsx.full.min.js"></script>
+
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-logo-container">
+        <!-- Pure Inline Vector Benchmark Electronics Logo (Never breaks, no file dependencies) -->
+        <svg class="brand-company-logo" viewBox="0 0 220 36" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Diamond 1 (Left) -->
+          <polygon points="12,18 20,8 28,18 20,28" fill="#0072ce"/>
+          <!-- Diamond 2 (Center Overlay) -->
+          <polygon points="20,18 28,8 36,18 28,28" fill="#0284c7" fill-opacity="0.85"/>
+          <!-- Diamond 3 (Right) -->
+          <polygon points="28,18 36,8 44,18 36,28" fill="#38bdf8"/>
+          <!-- Center Tech Accent -->
+          <circle cx="28" cy="18" r="3" fill="#ffffff"/>
+          <!-- Text: BENCHMARK -->
+          <text x="52" y="21" fill="#ffffff" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="800" letter-spacing="1.5">BENCHMARK</text>
+          <!-- Subtitle: ELECTRONICS -->
+          <text x="53" y="31" fill="#94a3b8" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="7.5" font-weight="600" letter-spacing="2.5">ELECTRONICS</text>
+        </svg>
+      </div>
+      <div class="brand-divider"></div>
+      <div>
+        <h1 class="brand-title">Defect Details Analytics</h1>
+        <p style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Interactive Customer & Part Drill-Down System</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Live Server Connection Status Badge -->
+      <div id="live-sync-badge" class="sync-status-badge"></div>
+
+      <!-- Publish Updates Button -->
+      <button class="btn" id="header-publish-btn" onclick="window.dataStore.publishAllUpdates()" style="background: rgba(2, 132, 199, 0.15); border-color: rgba(2, 132, 199, 0.4); color: #38bdf8;" title="Save all solution statuses, memos, and dataset updates to the shared drive file">
+        <i data-lucide="share-2"></i> Publish Updates
+      </button>
+
+      <!-- Theme Toggle -->
+      <button class="btn" id="theme-toggle-btn" title="Toggle Dark/Light Mode">
+        <i data-lucide="sun-moon"></i> Theme
+      </button>
+
+      <!-- Load Excel / CSV Button with Hover Guidance Tooltip -->
+      <div class="upload-btn-wrapper">
+        <label class="btn btn-primary" for="file-upload-input" style="cursor: pointer;">
+          <i data-lucide="upload-cloud"></i> Load Excel / CSV
+          <i data-lucide="help-circle" style="width: 15px; height: 15px; opacity: 0.8; margin-left: 2px;"></i>
+        </label>
+        <input type="file" id="file-upload-input" class="file-input-hidden" accept=".xls,.xlsx,.csv,.json" />
+
+        <!-- Hover Tooltip Guidance Card -->
+        <div class="upload-tooltip">
+          <div class="tooltip-header">
+            <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+            <span>How to Export Defect Details from TIME² System</span>
+          </div>
+
+          <div class="tooltip-grid">
+            <div class="tooltip-card">
+              <img src="assets/help/time2_menu.png" alt="TIME2 Menu Guidance" class="tooltip-img" onclick="openLightboxImage('assets/help/time2_menu.png')" />
+              <div class="tooltip-caption">
+                <strong>Step 1: Navigate to Report</strong><br />
+                In TIME², go to <code>PFSv4 Reports</code> ➔ <code>PFSv4 PO/Date Info</code> ➔ <code>Defect Details</code>.
+              </div>
+            </div>
+
+            <div class="tooltip-card">
+              <img src="assets/help/time2_query.png" alt="TIME2 Query Guidance" class="tooltip-img" onclick="openLightboxImage('assets/help/time2_query.png')" />
+              <div class="tooltip-caption">
+                <strong>Step 2: Build & Execute Query</strong><br />
+                Select all programs (using <code>Shift+Click</code>), select date range, check <code>Exclude NDFs</code>, click <code>Execute</code>, and download the Excel/CSV file (located at the bottom of the report).
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- App Container -->
+  <div class="app-container">
+    
+    <!-- Left Margin Tree Sidebar -->
+    <aside class="sidebar-tree">
+      <div class="tree-header">
+        <div class="tree-title-bar">
+          <span class="tree-title">Drill-Down Hierarchy</span>
+          <div class="tree-actions">
+            <button class="icon-btn" onclick="window.dataStore.clearAllFilters()" title="Clear All Filters">
+              <i data-lucide="filter-x"></i>
+            </button>
+            <button class="icon-btn" onclick="window.treeView.expandAll()" title="Expand All">
+              <i data-lucide="chevrons-down"></i>
+            </button>
+            <button class="icon-btn" onclick="window.treeView.collapseAll()" title="Collapse All">
+              <i data-lucide="chevrons-up"></i>
+            </button>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <!-- Date Range Selection Filter -->
+          <div class="date-filter-box">
+            <div class="date-filter-header">
+              <span class="filter-label"><i data-lucide="calendar" style="width: 14px; height: 14px; color: var(--accent-blue);"></i> Date Range:</span>
+              <select id="tree-date-preset" class="date-preset-select" title="Select Date Range Preset">
+                <option value="all">All Time (Default)</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="custom">Custom Range</option>
+              </select>
+            </div>
+            <div class="date-inputs-row" id="tree-date-custom-inputs">
+              <div class="date-input-group">
+                <label for="tree-date-start">From:</label>
+                <input type="date" id="tree-date-start" class="date-input" title="Start F.A. Date" />
+              </div>
+              <div class="date-input-group">
+                <label for="tree-date-end">To:</label>
+                <input type="date" id="tree-date-end" class="date-input" title="End F.A. Date" />
+              </div>
+            </div>
+          </div>
+
+          <div class="search-box">
+            <i data-lucide="search" class="search-icon" style="width: 16px; height: 16px;"></i>
+            <input type="text" id="tree-search-input" class="search-input" placeholder="Search hierarchy..." />
+            <button type="button" id="tree-search-clear" class="search-clear-btn" title="Clear Search (ESC)">
+              <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+            </button>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
+            <label for="tree-search-target" style="font-weight: 500;">Search Field:</label>
+            <select id="tree-search-target" class="search-target-select">
+              <option value="all">All Fields (Default)</option>
+              <option value="refDes">Ref Des Only</option>
+              <option value="serialNo">Serial Number Only</option>
+              <option value="failureComments">Failure Comments</option>
+              <option value="comments">Defect Comments</option>
+              <option value="parts">Part Numbers</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="tree-content" class="tree-content">
+        <!-- Rendered dynamically by treeView.js -->
+      </div>
+    </aside>
+
+    <!-- Main Workspace (Right Window) -->
+    <main class="main-workspace">
+      
+      <!-- Breadcrumb Trail -->
+      <nav id="breadcrumb-bar" class="breadcrumb-bar">
+        <!-- Rendered dynamically by mainPanel.js -->
+      </nav>
+
+      <!-- KPI Summary Cards -->
+      <section id="stats-grid" class="stats-grid">
+        <!-- Rendered dynamically by mainPanel.js -->
+      </section>
+
+      <!-- Main Workspace View Navigation Tabs -->
+      <nav class="main-workspace-tabs">
+        <button class="workspace-tab-btn active" id="tab-btn-comments" onclick="window.mainPanel.switchTab('comments')">
+          <i data-lucide="message-square"></i> Failure & Defect Comments Feed
+        </button>
+        <button class="workspace-tab-btn" id="tab-btn-records" onclick="window.mainPanel.switchTab('records')">
+          <i data-lucide="table"></i> Detailed Defect Records
+        </button>
+        <button class="workspace-tab-btn" id="tab-btn-chart" onclick="window.mainPanel.switchTab('chart')">
+          <i data-lucide="line-chart"></i> Timeline Trend Chart
+        </button>
+      </nav>
+
+      <!-- Tab Content 1: Defect & Failure Comments Feed -->
+      <div id="tab-content-comments" class="workspace-tab-content active">
+        <section class="comments-section">
+          <div class="section-header">
+            <h2 id="comments-title" class="section-title">
+              <i data-lucide="message-square"></i> Failure & Defect Comments Feed
+            </h2>
+          </div>
+
+          <div id="comments-feed" class="comments-feed">
+            <!-- Rendered dynamically by mainPanel.js -->
+          </div>
+        </section>
+      </div>
+
+      <!-- Tab Content 2: Detailed Defect Records Data Table -->
+      <div id="tab-content-records" class="workspace-tab-content">
+        <section class="table-section">
+          <div class="table-toolbar">
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+              <h2 class="section-title" style="font-size: 0.95rem;">
+                <i data-lucide="table"></i> Detailed Defect Records
+              </h2>
+              <div id="table-pagination-top" class="table-pagination-container"></div>
+            </div>
+            <div style="display: flex; gap: 0.75rem; align-items: center;">
+              <div class="search-box" style="width: 220px;">
+                <i data-lucide="filter" class="search-icon" style="width: 14px; height: 14px;"></i>
+                <input type="text" id="table-search" class="search-input" placeholder="Filter records..." style="padding-left: 2rem;" />
+                <button type="button" id="table-search-clear" class="search-clear-btn" title="Clear Filter (ESC)">
+                  <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                </button>
+              </div>
+              <button class="btn" onclick="window.mainPanel.exportCSV()">
+                <i data-lucide="download"></i> Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th onclick="window.mainPanel.handleSort('faDate')" class="sortable-header active-sort" data-sort-col="faDate" title="Click to sort by F.A. Date">F.A. Date <span class="sort-icon">▼</span></th>
+                  <th onclick="window.mainPanel.handleSort('parentPartNo')" class="sortable-header" data-sort-col="parentPartNo" title="Click to sort by Parent Part No.">Parent Part No. <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('serialNo')" class="sortable-header" data-sort-col="serialNo" title="Click to sort by Serial No.">Serial No. <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('defectDescription')" class="sortable-header" data-sort-col="defectDescription" title="Click to sort by Defect Description">Defect Description <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('refDes')" class="sortable-header" data-sort-col="refDes" title="Click to sort by Ref Des">Ref Des <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('defectQuantity')" class="sortable-header" data-sort-col="defectQuantity" style="text-align: center;" title="Click to sort by Quantity">Qty <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('confirmedFix')" class="sortable-header" data-sort-col="confirmedFix" title="Click to sort by Solution Confirmed">Solution Confirmed <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('fixComment')" class="sortable-header" data-sort-col="fixComment" title="Click to sort by Solution Memo">Solution Memo <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('failureComment')" class="sortable-header" data-sort-col="failureComment" title="Click to sort by Failure Comment">Failure Comment <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('defectComment')" class="sortable-header" data-sort-col="defectComment" title="Click to sort by Defect Comment">Defect Comment <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('debugTech')" class="sortable-header" data-sort-col="debugTech" title="Click to sort by Debug Tech">Debug Tech <span class="sort-icon">↕</span></th>
+                  <th onclick="window.mainPanel.handleSort('repairComment')" class="sortable-header" data-sort-col="repairComment" title="Click to sort by Repair Comment">Repair Comment <span class="sort-icon">↕</span></th>
+                </tr>
+              </thead>
+              <tbody id="table-body">
+                <!-- Rendered dynamically by mainPanel.js -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Table Pagination Footer -->
+          <div class="table-footer">
+            <div id="table-pagination-bottom" class="table-pagination-container" style="width: 100%;"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Tab Content 3: Interactive Defect Timeline Trend Chart -->
+      <div id="tab-content-chart" class="workspace-tab-content">
+        <section class="chart-section" style="padding: 1.25rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+          <div class="chart-header-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+              <h2 id="chart-heading" class="section-title" style="font-size: 1.05rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="line-chart" style="width: 18px; height: 18px; color: var(--accent-blue);"></i> Defect Quantity Timeline Trend
+              </h2>
+              <p id="chart-subheading" style="font-size: 0.78rem; color: var(--text-muted); margin: 3px 0 0 0;">Defect volume occurrences over time for selected category</p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Time Grouping:</span>
+              <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <button class="btn btn-sm btn-granularity active" id="gran-btn-auto" onclick="window.mainPanel.setChartGranularity('auto')">Auto</button>
+                <button class="btn btn-sm btn-granularity" id="gran-btn-daily" onclick="window.mainPanel.setChartGranularity('daily')">Daily</button>
+                <button class="btn btn-sm btn-granularity" id="gran-btn-weekly" onclick="window.mainPanel.setChartGranularity('weekly')">Weekly</button>
+                <button class="btn btn-sm btn-granularity" id="gran-btn-monthly" onclick="window.mainPanel.setChartGranularity('monthly')">Monthly</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-canvas-wrapper" id="chart-canvas-wrapper" style="position: relative; height: 480px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); padding: 0; box-sizing: border-box; overflow: hidden;">
+            <canvas id="timeline-chart-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
+            <div id="chart-tooltip" class="chart-tooltip-popup"></div>
+          </div>
+
+          <div id="chart-legend-container" class="chart-legend-bar" style="margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: center;"></div>
+        </section>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Server & Network Settings Modal -->
+  <div id="server-settings-modal" class="lightbox-modal" onclick="window.mainPanel.closeServerSettingsModal(event)">
+    <div class="lightbox-container" style="max-width: 580px; width: 90%; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+      <span class="lightbox-close" onclick="window.mainPanel.closeServerSettingsModal()">&times;</span>
+      
+      <div style="padding: 1.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+          <i data-lucide="network" style="width: 22px; height: 22px; color: var(--accent-blue);"></i>
+          <h2 style="font-size: 1.2rem; font-weight: 600; margin: 0;">Central Server & Network Sync</h2>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+          Enter the central server address (e.g., <code>http://10.100.51.64:8080</code> or <code>http://HSV-TE-23794:8080</code>) to synchronize defect records and solution statuses across all machines on your network.
+        </p>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.35rem;">Connection Status:</label>
+          <div id="server-modal-status" style="padding: 0.6rem 0.8rem; border-radius: 6px; background: var(--bg-card); font-size: 0.85rem; font-weight: 500;">
+            Checking status...
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label for="server-url-input" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.35rem;">Central Server Address:</label>
+          <input type="text" id="server-url-input" class="search-input" style="width: 100%; box-sizing: border-box; padding: 0.5rem 0.75rem; font-family: 'JetBrains Mono', monospace;" placeholder="http://10.100.51.64:8080" />
+        </div>
+
+        <div style="margin-bottom: 1.25rem;">
+          <label style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">Discovered Server Candidates:</label>
+          <div id="server-candidates-list" style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Sync & Cache Maintenance Tools -->
+        <div style="margin-bottom: 1.25rem; padding: 1rem; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color);">
+          <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.35rem; color: var(--accent-amber);">
+            <i data-lucide="wrench" style="width: 14px; height: 14px;"></i> Sync & Cache Maintenance Tools:
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <button class="btn" style="width: 100%; justify-content: flex-start; color: var(--accent-blue); border-color: rgba(59,130,246,0.4); text-align: left;" onclick="window.dataStore.exportDatasetFile(); window.mainPanel.closeServerSettingsModal();" title="Export defect_details.json to shared drive so all network machines see the new dataset">
+              <i data-lucide="upload"></i> <strong>Publish Dataset to Shared Drive</strong> (Overwrites data/defect_details.json)
+            </button>
+
+            <button class="btn" style="width: 100%; justify-content: flex-start; color: var(--accent-rose); border-color: rgba(244,63,94,0.4); text-align: left;" onclick="window.dataStore.clearLocalCache(); window.mainPanel.closeServerSettingsModal();" title="Wipe stale local browser cache and resync with central database">
+              <i data-lucide="trash-2"></i> <strong>Clear Local Cache & Resync</strong> (Fixes browser count discrepancies)
+            </button>
+
+            <button class="btn" style="width: 100%; justify-content: flex-start; color: var(--accent-amber); border-color: rgba(245,158,11,0.4); text-align: left;" onclick="window.dataStore.bindSharedFileForAutoSave(); window.mainPanel.closeServerSettingsModal();" title="Connect fix_annotations.json file handle for background auto-save on file:// network shares">
+              <i data-lucide="file-check"></i> <strong>Connect Shared Drive File Handle</strong> (Auto-save for file://)
+            </button>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <button class="btn" onclick="window.mainPanel.closeServerSettingsModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="window.mainPanel.saveServerSettings()">
+            <i data-lucide="check"></i> Connect & Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Record Details & Comments Modal -->
+  <div id="record-comments-modal" class="lightbox-modal" onclick="window.mainPanel.closeRecordCommentsModal(event)" style="display: none;">
+    <div class="modal-dialog" onclick="event.stopPropagation()">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 1.25rem 1.75rem;">
+        <h3 id="record-comments-modal-title" style="margin: 0; font-size: 1.3rem; display: flex; align-items: center; gap: 0.6rem; color: #fff;">
+          <i data-lucide="message-square" style="color: var(--accent-blue);"></i> Record Details & Comments
+        </h3>
+        <button class="modal-close-btn" onclick="window.mainPanel.closeRecordCommentsModal()" style="background: none; border: none; font-size: 1.8rem; color: var(--text-muted); cursor: pointer; padding: 0 0.5rem; line-height: 1;">&times;</button>
+      </div>
+      <div id="record-comments-modal-body" style="padding: 1.75rem; overflow-y: auto; flex: 1;">
+        <!-- Record comment card rendered here -->
+      </div>
+      <div style="display: flex; justify-content: flex-end; padding: 1rem 1.75rem; border-top: 1px solid var(--border-color); background: rgba(0,0,0,0.15);">
+        <button class="btn" onclick="window.mainPanel.closeRecordCommentsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Fullscreen Image Modal with Step Guidance -->
+  <div id="lightbox-modal" class="lightbox-modal" onclick="closeLightboxImage(event)">
+    <div class="lightbox-container" onclick="event.stopPropagation()">
+      <span class="lightbox-close" onclick="closeLightboxImage()">&times;</span>
+      
+      <div class="lightbox-body">
+        <img id="lightbox-img" class="lightbox-content" src="" alt="Enlarged Guidance Screenshot" />
+        
+        <div class="lightbox-info">
+          <div id="lightbox-step-badge" class="lightbox-step-badge">Step 1 of 2</div>
+          <h3 id="lightbox-title" class="lightbox-title">Navigate to Report in TIME²</h3>
+          <p id="lightbox-desc" class="lightbox-desc">
+            In TIME², go to <code>PFSv4 Reports</code> ➔ <code>PFSv4 PO/Date Info</code> ➔ <code>Defect Details</code>.
+          </p>
+          <div class="lightbox-footer-tip">
+            <i data-lucide="info" style="width: 16px; height: 16px; color: var(--accent-blue); flex-shrink: 0;"></i>
+            <span id="lightbox-tip-text">Follow the highlighted menu path in TIME² to open the export screen.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LIGHTBOX_GUIDANCE = {
+      'assets/help/time2_menu.png': {
+        step: 'Step 1 of 2',
+        title: 'Navigate to Report in TIME²',
+        desc: 'In the TIME² system, navigate to <code>PFSv4 Reports</code> ➔ <code>PFSv4 PO/Date Info</code> ➔ <code>Defect Details</code>.',
+        tip: 'Click PFSv4 Reports in the main top navigation bar to access the defect details export menu.'
+      },
+      'assets/help/time2_query.png': {
+        step: 'Step 2 of 2',
+        title: 'Build & Execute Query',
+        desc: 'Select all programs in the list (using <code>Shift + Click</code>), select your desired date range, check <code>Exclude NDFs</code>, click <code>Execute</code>, and scroll down to download the resulting Excel/CSV file at the bottom of the report.',
+        tip: 'Use Shift + Click to select all programs, ensure Exclude NDFs is checked, and scroll to the bottom of the generated report page to find the Excel download button.'
+      }
+    };
+
+    function openLightboxImage(src) {
+      const modal = document.getElementById('lightbox-modal');
+      const img = document.getElementById('lightbox-img');
+      const stepBadge = document.getElementById('lightbox-step-badge');
+      const titleEl = document.getElementById('lightbox-title');
+      const descEl = document.getElementById('lightbox-desc');
+      const tipEl = document.getElementById('lightbox-tip-text');
+
+      if (modal && img) {
+        img.src = src;
+        const info = LIGHTBOX_GUIDANCE[src] || {
+          step: 'TIME² Guidance',
+          title: 'Defect Details Export Instruction',
+          desc: 'Follow the screenshot guidance to export defect details from the TIME² system.',
+          tip: 'Click anywhere outside or the X button to close this preview.'
+        };
+
+        if (stepBadge) stepBadge.textContent = info.step;
+        if (titleEl) titleEl.textContent = info.title;
+        if (descEl) descEl.innerHTML = info.desc;
+        if (tipEl) tipEl.textContent = info.tip;
+
+        modal.style.display = 'flex';
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+
+    function closeLightboxImage(event) {
+      if (event && event.target && !event.target.classList.contains('lightbox-modal') && !event.target.classList.contains('lightbox-close')) {
+        return;
+      }
+      const modal = document.getElementById('lightbox-modal');
+      if (modal) modal.style.display = 'none';
+    }
+  </script>
+
+  <!-- Scripts -->
+  <script id="fix-annotations-script" src="data/fix_annotations.js?v=8.4"></script>
+  <script src="js/dataStore.js?v=8.4"></script>
+  <script src="js/treeView.js?v=8.4"></script>
+  <script src="js/mainPanel.js?v=8.4"></script>
+  <script src="js/app.js?v=8.4"></script>
+</body>
+</html>
