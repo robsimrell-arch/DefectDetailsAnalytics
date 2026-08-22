@@ -69,7 +69,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  z-index: 10;
+  z-index: 100;
   backdrop-filter: blur(12px);
 }
 
@@ -325,11 +325,9 @@ body {
 @keyframes tab-fade-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -1133,12 +1131,25 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: calc(100vh - 280px);
 }
 
-.section-header {
+.comments-section .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: sticky;
+  top: -1.5rem;
+  z-index: 25;
+  background: var(--bg-secondary);
+  padding: 0.85rem 1.25rem;
+  margin: -1.25rem -1.25rem 0 -1.25rem;
+  min-height: 54px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-color);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .section-title {
@@ -1154,17 +1165,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  max-height: 480px;
-  overflow-y: auto;
-  padding-right: 0.4rem;
-}
-
-.comments-feed::-webkit-scrollbar {
-  width: 6px;
-}
-.comments-feed::-webkit-scrollbar-thumb {
-  background: var(--bg-tertiary);
-  border-radius: 3px;
 }
 
 .comment-card {
@@ -1361,12 +1361,21 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  position: sticky;
+  top: -1.5rem;
+  z-index: 25;
+  background: var(--bg-secondary);
+  padding: 0.65rem 1.25rem;
+  margin: -1.25rem -1.25rem 0 -1.25rem;
+  min-height: 54px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-color);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .table-container {
-  overflow: auto;
-  max-height: calc(100vh - 390px);
-  min-height: 350px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   position: relative;
@@ -1382,14 +1391,14 @@ body {
 
 .data-table th {
   position: sticky;
-  top: 0;
-  z-index: 10;
+  top: calc(-1.5rem + 54px);
+  z-index: 20;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   font-weight: 600;
   padding: 0.75rem 0.9rem;
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   white-space: nowrap;
 }
 
