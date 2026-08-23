@@ -31,38 +31,76 @@ def get_config():
             print(f"[CONFIG WARNING] Could not parse shared_config.json: {e}")
     return cfg
 
+_cached_network_share_dir = None
+_network_share_checked = False
+_network_share_lock = threading.Lock()
+
+def check_path_fast(path, timeout=0.3):
+    """Fast check for path accessibility with timeout to prevent blocking on dead UNC shares."""
+    if not path:
+        return False
+    if not path.startswith(r"\\"):
+        return os.path.exists(path)
+    
+    result = [False]
+    def _worker():
+        try:
+            if os.path.exists(path):
+                result[0] = True
+        except Exception:
+            pass
+    
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    t.join(timeout)
+    return result[0]
+
 def find_network_share_data_dir():
-    cfg = get_config()
-    target_dir = cfg.get('shared_data_dir', '').strip()
-    if target_dir:
-        exp = os.path.expandvars(target_dir)
-        if exp and os.path.exists(exp):
-            return exp
+    global _cached_network_share_dir, _network_share_checked
+    if _network_share_checked:
+        return _cached_network_share_dir
 
-    net_share = cfg.get('network_share_dir', '').strip()
-    if net_share:
-        net_data = os.path.join(net_share, 'data')
-        if os.path.exists(net_data):
-            return net_data
+    with _network_share_lock:
+        if _network_share_checked:
+            return _cached_network_share_dir
+        
+        cfg = get_config()
+        target_dir = cfg.get('shared_data_dir', '').strip()
+        if target_dir:
+            exp = os.path.expandvars(target_dir)
+            if exp and check_path_fast(exp, timeout=0.3):
+                _cached_network_share_dir = exp
+                _network_share_checked = True
+                return exp
 
-    prod_share = r"\\bench.com\cuidata\HSV\TestENG\CUSTOMER_FVT\DefectAnalysis\data"
-    if os.path.exists(prod_share):
-        return prod_share
+        net_share = cfg.get('network_share_dir', '').strip()
+        if net_share:
+            net_data = os.path.join(net_share, 'data')
+            if check_path_fast(net_data, timeout=0.3):
+                _cached_network_share_dir = net_data
+                _network_share_checked = True
+                return net_data
 
-    return None
+        prod_share = r"\\bench.com\cuidata\HSV\TestENG\CUSTOMER_FVT\DefectAnalysis\data"
+        if check_path_fast(prod_share, timeout=0.3):
+            _cached_network_share_dir = prod_share
+            _network_share_checked = True
+            return prod_share
+
+        _cached_network_share_dir = None
+        _network_share_checked = True
+        return None
 
 def get_all_candidate_data_dirs():
     dirs = []
-
-    # 1. Primary: Shared Network Drive (\\bench.com\cuidata\HSV\TestEng\CUSTOMER_FVT\DefectAnalysis\data)
-    net_data = find_network_share_data_dir()
-    if net_data and os.path.exists(net_data) and net_data not in dirs:
-        dirs.append(net_data)
-
-    # 2. Local APP_DIR / data (fallback and local cache)
+    # 1. Local APP_DIR / data (Fastest & Always Available)
     local_data = os.path.join(APP_DIR, 'data')
-    if local_data not in dirs:
-        dirs.append(local_data)
+    dirs.append(local_data)
+
+    # 2. Shared Network Drive (If connected)
+    net_data = find_network_share_data_dir()
+    if net_data and net_data not in dirs:
+        dirs.append(net_data)
 
     return dirs
 
@@ -82,41 +120,21 @@ def find_best_dataset_file():
     local_size = os.path.getsize(local_path) if local_exists else -1
     local_mtime = int(os.path.getmtime(local_path)) if local_exists else -1
 
-    net_data = find_network_share_data_dir()
-    if net_data:
-        net_path = os.path.join(net_data, 'defect_details.json')
-        if os.path.exists(net_path):
-            try:
-                net_size = os.path.getsize(net_path)
-                net_mtime = int(os.path.getmtime(net_path))
-                # If network file is significantly larger or strictly newer, use network file
-                if net_size > local_size or (net_size == local_size and net_mtime > local_mtime + 5):
-                    return net_path, net_size, net_mtime
-            except Exception:
-                pass
-
     if local_exists and local_size > 0:
         return local_path, local_size, local_mtime
 
-    target_dirs = get_all_candidate_data_dirs()
-    best_file = None
-    best_size = -1
-    best_mtime = -1
-
-    for td in target_dirs:
-        ds_path = os.path.join(td, 'defect_details.json')
-        if os.path.exists(ds_path):
+    net_data = find_network_share_data_dir()
+    if net_data:
+        net_path = os.path.join(net_data, 'defect_details.json')
+        if check_path_fast(net_path, timeout=0.3):
             try:
-                sz = os.path.getsize(ds_path)
-                mt = int(os.path.getmtime(ds_path))
-                if sz > best_size or (sz == best_size and mt > best_mtime):
-                    best_size = sz
-                    best_mtime = mt
-                    best_file = ds_path
+                net_size = os.path.getsize(net_path)
+                net_mtime = int(os.path.getmtime(net_path))
+                return net_path, net_size, net_mtime
             except Exception:
                 pass
 
-    return best_file, best_size, best_mtime
+    return local_path, local_size, local_mtime
 
 def get_cached_dataset_body(accept_gzip=False):
     global dataset_cache_records, dataset_cache_mtime, dataset_cache_json_bytes, dataset_cache_gzip_bytes

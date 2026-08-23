@@ -1190,6 +1190,11 @@ class DataStore {
     
     this.selectedNode = null;
     this.notify();
+
+    const loader = document.getElementById('app-startup-loader');
+    if (loader) {
+      setTimeout(() => loader.classList.add('hidden'), 100);
+    }
   }
 
   /**
