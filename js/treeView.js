@@ -146,7 +146,7 @@ class TreeView {
               <i class="tree-icon" data-lucide="building-2"></i>
               <span class="tree-label" title="Customer ${this.escapeHtml(cust.name)}">${this.escapeHtml(cust.name)}</span>
             </div>
-            <span class="tree-badge">${cust.totalQty}</span>
+            <span class="tree-badge" title="${(cust.recordCount || 0).toLocaleString()} records">${(cust.recordCount || 0).toLocaleString()}</span>
           </div>
       `;
 
@@ -170,7 +170,7 @@ class TreeView {
                   <i class="tree-icon" data-lucide="cpu"></i>
                   <span class="tree-label" title="Part No: ${this.escapeHtml(part.name)}">${this.escapeHtml(part.name)}</span>
                 </div>
-                <span class="tree-badge">${part.totalQty}</span>
+                <span class="tree-badge" title="${(part.recordCount || 0).toLocaleString()} records">${(part.recordCount || 0).toLocaleString()}</span>
               </div>
           `;
 
@@ -194,7 +194,7 @@ class TreeView {
                       <i class="tree-icon" data-lucide="activity"></i>
                       <span class="tree-label" title="Process: ${this.escapeHtml(proc.name)}">${this.escapeHtml(proc.name)}</span>
                     </div>
-                    <span class="tree-badge">${proc.totalQty}</span>
+                    <span class="tree-badge" title="${(proc.recordCount || 0).toLocaleString()} records">${(proc.recordCount || 0).toLocaleString()}</span>
                   </div>
               `;
 
@@ -218,7 +218,7 @@ class TreeView {
                           <i class="tree-icon" data-lucide="alert-triangle"></i>
                           <span class="tree-label" title="${this.escapeHtml(desc.name)}">${this.escapeHtml(desc.name)}</span>
                         </div>
-                        <span class="tree-badge">${desc.totalQty}</span>
+                        <span class="tree-badge" title="${(desc.recordCount || 0).toLocaleString()} records">${(desc.recordCount || 0).toLocaleString()}</span>
                       </div>
                   `;
 
@@ -242,7 +242,7 @@ class TreeView {
                               <i class="tree-icon" data-lucide="map-pin"></i>
                               <span class="tree-label" title="Ref Des: ${this.escapeHtml(ref.name)}">${this.escapeHtml(ref.name)}</span>
                             </div>
-                            <span class="tree-badge">${ref.totalQty}</span>
+                            <span class="tree-badge" title="${(ref.recordCount || 0).toLocaleString()} records">${(ref.recordCount || 0).toLocaleString()}</span>
                           </div>
                         </div>
                       `;

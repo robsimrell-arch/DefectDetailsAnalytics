@@ -1498,39 +1498,44 @@ class DataStore {
       const qty = rec.defectQuantity;
 
       if (!custMap.has(cust)) {
-        custMap.set(cust, { name: cust, totalQty: 0, partsMap: new Map() });
+        custMap.set(cust, { name: cust, recordCount: 0, totalQty: 0, partsMap: new Map() });
       }
       const custNode = custMap.get(cust);
+      custNode.recordCount += 1;
       custNode.totalQty += qty;
 
       if (!custNode.partsMap.has(part)) {
-        custNode.partsMap.set(part, { name: part, totalQty: 0, procMap: new Map() });
+        custNode.partsMap.set(part, { name: part, recordCount: 0, totalQty: 0, procMap: new Map() });
       }
       const partNode = custNode.partsMap.get(part);
+      partNode.recordCount += 1;
       partNode.totalQty += qty;
 
       if (!partNode.procMap.has(proc)) {
-        partNode.procMap.set(proc, { name: proc, totalQty: 0, descMap: new Map() });
+        partNode.procMap.set(proc, { name: proc, recordCount: 0, totalQty: 0, descMap: new Map() });
       }
       const procNode = partNode.procMap.get(proc);
+      procNode.recordCount += 1;
       procNode.totalQty += qty;
 
       if (!procNode.descMap.has(desc)) {
-        procNode.descMap.set(desc, { name: desc, totalQty: 0, refMap: new Map() });
+        procNode.descMap.set(desc, { name: desc, recordCount: 0, totalQty: 0, refMap: new Map() });
       }
       const descNode = procNode.descMap.get(desc);
+      descNode.recordCount += 1;
       descNode.totalQty += qty;
 
       if (!descNode.refMap.has(ref)) {
-        descNode.refMap.set(ref, { name: ref, totalQty: 0, records: [] });
+        descNode.refMap.set(ref, { name: ref, recordCount: 0, totalQty: 0, records: [] });
       }
       const refNode = descNode.refMap.get(ref);
+      refNode.recordCount += 1;
       refNode.totalQty += qty;
       refNode.records.push(rec);
     });
 
     const alphaSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-    const qtySort = (a, b) => (b.totalQty - a.totalQty) || alphaSort(a, b);
+    const countSort = (a, b) => (b.recordCount - a.recordCount) || (b.totalQty - a.totalQty) || alphaSort(a, b);
 
     const tree = Array.from(custMap.values()).map(cust => {
       const parts = Array.from(cust.partsMap.values()).map(part => {
@@ -1542,35 +1547,39 @@ class DataStore {
             const refs = Array.from(desc.refMap.values()).map(ref => {
               ref.records.sort((a, b) => this.parseDate(b.faDate) - this.parseDate(a.faDate));
               return ref;
-            }).sort(qtySort); // Level 5: Ref Des Qty Descending
+            }).sort(countSort); // Level 5: Ref Des Record Count Descending
             
             return {
               name: desc.name,
+              recordCount: desc.recordCount,
               totalQty: desc.totalQty,
               children: refs
             };
-          }).sort(qtySort); // Level 4: Defect Description Qty Descending
+          }).sort(countSort); // Level 4: Defect Description Record Count Descending
 
           return {
             name: proc.name,
+            recordCount: proc.recordCount,
             totalQty: proc.totalQty,
             children: descs
           };
-        }).sort(qtySort); // Level 3: Process Recorded Qty Descending
+        }).sort(countSort); // Level 3: Process Recorded Record Count Descending
 
-        return {
-          name: part.name,
-          totalQty: part.totalQty,
-          children: procs
-        };
+          return {
+            name: part.name,
+            recordCount: part.recordCount,
+            totalQty: part.totalQty,
+            children: procs
+          };
       }).sort(alphaSort); // Level 2: Parent Part No Alphanumeric
 
       return {
         name: cust.name,
+        recordCount: cust.recordCount,
         totalQty: cust.totalQty,
         children: parts
       };
-    }).sort(qtySort); // Level 1: Customer Total Qty Descending
+    }).sort(countSort); // Level 1: Customer Total Records Descending
 
     this.treeData = tree;
     this.updateDateInputsUI();
