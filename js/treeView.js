@@ -29,6 +29,22 @@ class TreeView {
     return encodeURIComponent(str || '').replace(/'/g, '%27');
   }
 
+  highlightText(str) {
+    if (!str && str !== 0) return '';
+    const safeStr = this.escapeHtml(str);
+    const query = (window.dataStore && window.dataStore.searchQuery) ? window.dataStore.searchQuery.trim() : '';
+    if (!query) return safeStr;
+
+    const words = query.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) return safeStr;
+
+    words.sort((a, b) => b.length - a.length);
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
+
+    return safeStr.replace(regex, '<mark class="search-highlight">$1</mark>');
+  }
+
   toggleNode(key) {
     if (this.expandedKeys.has(key)) {
       this.expandedKeys.delete(key);
@@ -144,7 +160,7 @@ class TreeView {
                 <i data-lucide="chevron-right"></i>
               </span>
               <i class="tree-icon" data-lucide="building-2"></i>
-              <span class="tree-label" title="Customer ${this.escapeHtml(cust.name)}">${this.escapeHtml(cust.name)}</span>
+              <span class="tree-label" title="Customer ${this.escapeHtml(cust.name)}">${this.highlightText(cust.name)}</span>
             </div>
             <span class="tree-badge" title="${(cust.recordCount || 0).toLocaleString()} records">${(cust.recordCount || 0).toLocaleString()}</span>
           </div>
@@ -168,7 +184,7 @@ class TreeView {
                     <i data-lucide="chevron-right"></i>
                   </span>
                   <i class="tree-icon" data-lucide="cpu"></i>
-                  <span class="tree-label" title="Part No: ${this.escapeHtml(part.name)}">${this.escapeHtml(part.name)}</span>
+                  <span class="tree-label" title="Part No: ${this.escapeHtml(part.name)}">${this.highlightText(part.name)}</span>
                 </div>
                 <span class="tree-badge" title="${(part.recordCount || 0).toLocaleString()} records">${(part.recordCount || 0).toLocaleString()}</span>
               </div>
@@ -192,7 +208,7 @@ class TreeView {
                         <i data-lucide="chevron-right"></i>
                       </span>
                       <i class="tree-icon" data-lucide="activity"></i>
-                      <span class="tree-label" title="Process: ${this.escapeHtml(proc.name)}">${this.escapeHtml(proc.name)}</span>
+                      <span class="tree-label" title="Process: ${this.escapeHtml(proc.name)}">${this.highlightText(proc.name)}</span>
                     </div>
                     <span class="tree-badge" title="${(proc.recordCount || 0).toLocaleString()} records">${(proc.recordCount || 0).toLocaleString()}</span>
                   </div>
@@ -216,7 +232,7 @@ class TreeView {
                             <i data-lucide="chevron-right"></i>
                           </span>
                           <i class="tree-icon" data-lucide="alert-triangle"></i>
-                          <span class="tree-label" title="${this.escapeHtml(desc.name)}">${this.escapeHtml(desc.name)}</span>
+                          <span class="tree-label" title="${this.escapeHtml(desc.name)}">${this.highlightText(desc.name)}</span>
                         </div>
                         <span class="tree-badge" title="${(desc.recordCount || 0).toLocaleString()} records">${(desc.recordCount || 0).toLocaleString()}</span>
                       </div>
@@ -240,7 +256,7 @@ class TreeView {
                             <div class="tree-node-left">
                               <span class="tree-toggle" style="visibility: hidden;"><i data-lucide="minus"></i></span>
                               <i class="tree-icon" data-lucide="map-pin"></i>
-                              <span class="tree-label" title="Ref Des: ${this.escapeHtml(ref.name)}">${this.escapeHtml(ref.name)}</span>
+                              <span class="tree-label" title="Ref Des: ${this.escapeHtml(ref.name)}">${this.highlightText(ref.name)}</span>
                             </div>
                             <span class="tree-badge" title="${(ref.recordCount || 0).toLocaleString()} records">${(ref.recordCount || 0).toLocaleString()}</span>
                           </div>

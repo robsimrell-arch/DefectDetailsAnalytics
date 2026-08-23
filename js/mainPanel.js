@@ -173,6 +173,36 @@ class MainPanel {
       .replace(/'/g, '&#39;');
   }
 
+  highlightText(str, extraQuery) {
+    if (!str && str !== 0) return '';
+    const safeStr = this.escapeHtml(str);
+
+    const queryParts = [];
+    const globalQ = (window.dataStore && window.dataStore.searchQuery) ? window.dataStore.searchQuery.trim() : '';
+    if (globalQ) queryParts.push(globalQ);
+
+    const tableQ = (extraQuery !== undefined ? extraQuery : (this.tableFilter || '')).trim();
+    if (tableQ && !queryParts.includes(tableQ)) queryParts.push(tableQ);
+
+    if (queryParts.length === 0) return safeStr;
+
+    const wordsSet = new Set();
+    queryParts.forEach(q => {
+      q.split(/\s+/).forEach(w => {
+        if (w.length > 0) wordsSet.add(w);
+      });
+    });
+
+    const words = Array.from(wordsSet);
+    if (words.length === 0) return safeStr;
+
+    words.sort((a, b) => b.length - a.length);
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const regex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
+
+    return safeStr.replace(regex, '<mark class="search-highlight">$1</mark>');
+  }
+
   escapeJs(str) {
     if (!str && str !== 0) return '';
     return String(str)
@@ -457,10 +487,10 @@ class MainPanel {
       <div class="comment-card" style="margin-bottom: 1rem;">
         <div class="comment-card-header">
           <div class="comment-tags">
-            <span class="tag">Ref Des: ${this.escapeHtml(rec.refDes || 'N/A')}</span>
-            ${rec.defectCode ? `<span class="tag" style="color: var(--accent-purple);">Defect Code: ${this.escapeHtml(rec.defectCode)}</span>` : ''}
-            ${rec.failureCode ? `<span class="tag" style="color: var(--accent-rose);">Failure Code: ${this.escapeHtml(rec.failureCode)}</span>` : ''}
-            ${rec.serialNo ? `<span class="tag" style="color: var(--accent-amber);">SN: ${this.escapeHtml(rec.serialNo)}</span>` : ''}
+            <span class="tag">Ref Des: ${this.highlightText(rec.refDes || 'N/A')}</span>
+            ${rec.defectCode ? `<span class="tag" style="color: var(--accent-purple);">Defect Code: ${this.highlightText(rec.defectCode)}</span>` : ''}
+            ${rec.failureCode ? `<span class="tag" style="color: var(--accent-rose);">Failure Code: ${this.highlightText(rec.failureCode)}</span>` : ''}
+            ${rec.serialNo ? `<span class="tag" style="color: var(--accent-amber);">SN: ${this.highlightText(rec.serialNo)}</span>` : ''}
           </div>
 
           <!-- Solution Confirmed Selector -->
@@ -481,9 +511,9 @@ class MainPanel {
           <div class="comment-block failure-block">
             <div class="comment-block-label amber-label">
               <i data-lucide="alert-triangle" style="width: 14px; height: 14px;"></i>
-              <strong>Failure Comment</strong> ${rec.whoFailed ? `<span class="user-badge">by ${this.escapeHtml(rec.whoFailed)}</span>` : ''}
+              <strong>Failure Comment</strong> ${rec.whoFailed ? `<span class="user-badge">by ${this.highlightText(rec.whoFailed)}</span>` : ''}
             </div>
-            <div class="comment-text">${this.escapeHtml(rec.failureComment)}</div>
+            <div class="comment-text">${this.highlightText(rec.failureComment)}</div>
           </div>
         ` : ''}
 
@@ -492,9 +522,9 @@ class MainPanel {
           <div class="comment-block defect-block">
             <div class="comment-block-label blue-label">
               <i data-lucide="wrench" style="width: 14px; height: 14px;"></i>
-              <strong>Defect Comment</strong> ${rec.debugTech ? `<span class="user-badge">by ${this.escapeHtml(rec.debugTech)}</span>` : ''}
+              <strong>Defect Comment</strong> ${rec.debugTech ? `<span class="user-badge">by ${this.highlightText(rec.debugTech)}</span>` : ''}
             </div>
-            <div class="comment-text">${this.escapeHtml(rec.defectComment)}</div>
+            <div class="comment-text">${this.highlightText(rec.defectComment)}</div>
           </div>
         ` : ''}
 
@@ -503,9 +533,9 @@ class MainPanel {
           <div class="comment-block repair-block">
             <div class="comment-block-label purple-label">
               <i data-lucide="tool" style="width: 14px; height: 14px;"></i>
-              <strong>Repair Comment</strong> ${rec.repairTech ? `<span class="user-badge">by ${this.escapeHtml(rec.repairTech)}</span>` : ''}
+              <strong>Repair Comment</strong> ${rec.repairTech ? `<span class="user-badge">by ${this.highlightText(rec.repairTech)}</span>` : ''}
             </div>
-            <div class="comment-text">${this.escapeHtml(rec.repairComment)}</div>
+            <div class="comment-text">${this.highlightText(rec.repairComment)}</div>
           </div>
         ` : ''}
 
@@ -516,7 +546,7 @@ class MainPanel {
               <i data-lucide="check-square" style="width: 14px; height: 14px;"></i>
               <strong>Solution Memo</strong>
             </span>
-            <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400;">Linked by SN: ${this.escapeHtml(rec.serialNo)} | Ref: ${this.escapeHtml(rec.refDes)}</span>
+            <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 400;">Linked by SN: ${this.highlightText(rec.serialNo)} | Ref: ${this.highlightText(rec.refDes)}</span>
           </div>
           <textarea class="fix-comment-textarea" 
                     placeholder="Type solution notes, root cause confirmation, or testing results..."
@@ -526,10 +556,10 @@ class MainPanel {
         </div>
 
         <div class="comment-meta">
-          <span><strong>Customer:</strong> ${this.escapeHtml(rec.customer || 'N/A')}</span>
-          <span><strong>Part:</strong> ${this.escapeHtml(rec.parentPartNo || 'N/A')}</span>
-          <span><strong>Process:</strong> ${this.escapeHtml(rec.processRecorded || 'N/A')}</span>
-          <span><strong>Defect:</strong> ${this.escapeHtml(rec.defectDescription || 'N/A')}</span>
+          <span><strong>Customer:</strong> ${this.highlightText(rec.customer || 'N/A')}</span>
+          <span><strong>Part:</strong> ${this.highlightText(rec.parentPartNo || 'N/A')}</span>
+          <span><strong>Process:</strong> ${this.highlightText(rec.processRecorded || 'N/A')}</span>
+          <span><strong>Defect:</strong> ${this.highlightText(rec.defectDescription || 'N/A')}</span>
         </div>
       </div>
     `;
@@ -568,7 +598,7 @@ class MainPanel {
     if (!modal || !bodyEl || !rec) return;
 
     if (titleEl) {
-      titleEl.innerHTML = `<i data-lucide="message-square" style="color: var(--accent-blue);"></i> Record Details & Comments: <span style="color: var(--accent-amber); font-family: 'JetBrains Mono', monospace;">${this.escapeHtml(rec.serialNo || 'SN N/A')}</span> (${this.escapeHtml(rec.refDes || 'No Ref')})`;
+      titleEl.innerHTML = `<i data-lucide="message-square" style="color: var(--accent-blue);"></i> Record Details & Comments: <span style="color: var(--accent-amber); font-family: 'JetBrains Mono', monospace;">${this.highlightText(rec.serialNo || 'SN N/A')}</span> (${this.highlightText(rec.refDes || 'No Ref')})`;
     }
 
     bodyEl.innerHTML = this.renderCommentCardHtml(rec);
@@ -827,10 +857,10 @@ class MainPanel {
       html += `
         <tr class="record-row-clickable" data-row-index="${idx}" onclick="window.mainPanel.openRecordCommentsModalByIndex(${idx})" title="Click to view all failure, defect, repair comments & solution notes for this record">
           <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-blue);">${this.escapeHtml(r.faDate)}</span></td>
-          <td><strong>${this.escapeHtml(r.parentPartNo)}</strong></td>
-          <td><span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-amber);">${this.escapeHtml(r.serialNo || '-')}</span></td>
-          <td>${this.escapeHtml(r.defectDescription)}</td>
-          <td><span class="tag">${this.escapeHtml(r.refDes)}</span></td>
+          <td><strong>${this.highlightText(r.parentPartNo)}</strong></td>
+          <td><span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-amber);">${this.highlightText(r.serialNo || '-')}</span></td>
+          <td>${this.highlightText(r.defectDescription)}</td>
+          <td><span class="tag">${this.highlightText(r.refDes)}</span></td>
           <td style="text-align: center; font-weight: 600;">${r.defectQuantity}</td>
           
           <!-- Solution Confirmed Status -->
@@ -851,10 +881,10 @@ class MainPanel {
                    onchange="window.mainPanel.handleEncodedFixCommentChange('${this.safeParam(r.serialNo)}', '${this.safeParam(r.faDate)}', '${this.safeParam(r.refDes)}', '${this.safeParam(r.defectDescription)}', this.value)" />
           </td>
 
-          <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-amber);" title="${this.escapeHtml(r.failureComment)}">${this.escapeHtml(r.failureComment || '-')}</td>
-          <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(r.defectComment)}">${this.escapeHtml(r.defectComment || '-')}</td>
-          <td>${this.escapeHtml(r.debugTech || '-')}</td>
-          <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(r.repairComment)}">${this.escapeHtml(r.repairComment || '-')}</td>
+          <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-amber);" title="${this.escapeHtml(r.failureComment)}">${this.highlightText(r.failureComment || '-')}</td>
+          <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(r.defectComment)}">${this.highlightText(r.defectComment || '-')}</td>
+          <td>${this.highlightText(r.debugTech || '-')}</td>
+          <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${this.escapeHtml(r.repairComment)}">${this.highlightText(r.repairComment || '-')}</td>
         </tr>
       `;
     });
