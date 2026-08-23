@@ -93,14 +93,15 @@ def find_network_share_data_dir():
 
 def get_all_candidate_data_dirs():
     dirs = []
-    # 1. Local APP_DIR / data (Fastest & Always Available)
-    local_data = os.path.join(APP_DIR, 'data')
-    dirs.append(local_data)
-
-    # 2. Shared Network Drive (If connected)
+    # 1. Primary: Shared Central Network Drive (\\bench.com\...)
     net_data = find_network_share_data_dir()
     if net_data and net_data not in dirs:
         dirs.append(net_data)
+
+    # 2. Local / In-Place APP_DIR data directory
+    local_data = os.path.join(APP_DIR, 'data')
+    if local_data not in dirs:
+        dirs.append(local_data)
 
     return dirs
 
@@ -120,19 +121,22 @@ def find_best_dataset_file():
     local_size = os.path.getsize(local_path) if local_exists else -1
     local_mtime = int(os.path.getmtime(local_path)) if local_exists else -1
 
-    if local_exists and local_size > 0:
-        return local_path, local_size, local_mtime
-
+    # Check network share if distinct from local
     net_data = find_network_share_data_dir()
-    if net_data:
+    if net_data and os.path.abspath(net_data) != os.path.abspath(os.path.join(APP_DIR, 'data')):
         net_path = os.path.join(net_data, 'defect_details.json')
         if check_path_fast(net_path, timeout=0.3):
             try:
                 net_size = os.path.getsize(net_path)
                 net_mtime = int(os.path.getmtime(net_path))
-                return net_path, net_size, net_mtime
+                # If network file is newer or larger than local, prioritize central network file
+                if net_size > local_size or (net_size == local_size and net_mtime > local_mtime + 5):
+                    return net_path, net_size, net_mtime
             except Exception:
                 pass
+
+    if local_exists and local_size > 0:
+        return local_path, local_size, local_mtime
 
     return local_path, local_size, local_mtime
 
