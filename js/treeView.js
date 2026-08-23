@@ -25,6 +25,10 @@ class TreeView {
       .replace(/'/g, '&#39;');
   }
 
+  safeParam(str) {
+    return encodeURIComponent(str || '').replace(/'/g, '%27');
+  }
+
   toggleNode(key) {
     if (this.expandedKeys.has(key)) {
       this.expandedKeys.delete(key);
@@ -133,10 +137,10 @@ class TreeView {
       html += `
         <div class="tree-node level-1">
           <div class="tree-node-row ${isCustSelected ? 'selected' : ''}" 
-               onclick="window.treeView.selectEncodedNode(event, 1, '${encodeURIComponent(cust.name)}')">
+               onclick="window.treeView.selectEncodedNode(event, 1, '${this.safeParam(cust.name)}')">
             <div class="tree-node-left">
               <span class="tree-toggle ${isCustExpanded ? 'expanded' : ''}" 
-                    onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${encodeURIComponent(custKey)}')">
+                    onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(custKey)}')">
                 <i data-lucide="chevron-right"></i>
               </span>
               <i class="tree-icon" data-lucide="building-2"></i>
@@ -157,10 +161,10 @@ class TreeView {
           html += `
             <div class="tree-node level-2">
               <div class="tree-node-row ${isPartSelected ? 'selected' : ''}" 
-                   onclick="window.treeView.selectEncodedNode(event, 2, '${encodeURIComponent(cust.name)}', '${encodeURIComponent(part.name)}')">
+                   onclick="window.treeView.selectEncodedNode(event, 2, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}')">
                 <div class="tree-node-left">
                   <span class="tree-toggle ${isPartExpanded ? 'expanded' : ''}" 
-                        onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${encodeURIComponent(partKey)}')">
+                        onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(partKey)}')">
                     <i data-lucide="chevron-right"></i>
                   </span>
                   <i class="tree-icon" data-lucide="cpu"></i>
@@ -181,10 +185,10 @@ class TreeView {
               html += `
                 <div class="tree-node level-3">
                   <div class="tree-node-row ${isProcSelected ? 'selected' : ''}" 
-                       onclick="window.treeView.selectEncodedNode(event, 3, '${encodeURIComponent(cust.name)}', '${encodeURIComponent(part.name)}', '${encodeURIComponent(proc.name)}')">
+                       onclick="window.treeView.selectEncodedNode(event, 3, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}', '${this.safeParam(proc.name)}')">
                     <div class="tree-node-left">
                       <span class="tree-toggle ${isProcExpanded ? 'expanded' : ''}" 
-                            onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${encodeURIComponent(procKey)}')">
+                            onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(procKey)}')">
                         <i data-lucide="chevron-right"></i>
                       </span>
                       <i class="tree-icon" data-lucide="activity"></i>
@@ -205,10 +209,10 @@ class TreeView {
                   html += `
                     <div class="tree-node level-4">
                       <div class="tree-node-row ${isDescSelected ? 'selected' : ''}" 
-                           onclick="window.treeView.selectEncodedNode(event, 4, '${encodeURIComponent(cust.name)}', '${encodeURIComponent(part.name)}', '${encodeURIComponent(proc.name)}', '${encodeURIComponent(desc.name)}')">
+                           onclick="window.treeView.selectEncodedNode(event, 4, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}', '${this.safeParam(proc.name)}', '${this.safeParam(desc.name)}')">
                         <div class="tree-node-left">
                           <span class="tree-toggle ${isDescExpanded ? 'expanded' : ''}" 
-                                onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${encodeURIComponent(descKey)}')">
+                                onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(descKey)}')">
                             <i data-lucide="chevron-right"></i>
                           </span>
                           <i class="tree-icon" data-lucide="alert-triangle"></i>
@@ -232,7 +236,7 @@ class TreeView {
                       html += `
                         <div class="tree-node level-5">
                           <div class="tree-node-row ${isRefSelected ? 'selected' : ''}" 
-                               onclick="window.treeView.selectEncodedNode(event, 5, '${encodeURIComponent(cust.name)}', '${encodeURIComponent(part.name)}', '${encodeURIComponent(proc.name)}', '${encodeURIComponent(desc.name)}', '${encodeURIComponent(ref.name)}')">
+                               onclick="window.treeView.selectEncodedNode(event, 5, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}', '${this.safeParam(proc.name)}', '${this.safeParam(desc.name)}', '${this.safeParam(ref.name)}')">
                             <div class="tree-node-left">
                               <span class="tree-toggle" style="visibility: hidden;"><i data-lucide="minus"></i></span>
                               <i class="tree-icon" data-lucide="map-pin"></i>

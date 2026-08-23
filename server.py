@@ -218,19 +218,35 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             pass
 
+    def translate_path(self, path):
+        # Restrict static file serving: block hidden files and sensitive script/config source files
+        clean = path.split('?')[0].split('#')[0]
+        segments = [s for s in clean.split('/') if s]
+        if any(seg.startswith('.') for seg in segments):
+            return os.path.join(APP_DIR, '__blocked__')
+        ext = os.path.splitext(clean)[1].lower()
+        if ext in ('.py', '.log', '.bat', '.ps1', '.vbs', '.cmd', '.url', '.git'):
+            return os.path.join(APP_DIR, '__blocked__')
+        return super().translate_path(path)
+
     def end_headers(self):
         origin = self.headers.get('Origin', '')
-        allowed = {'http://127.0.0.1:8080', 'http://localhost:8080', 'null'}
-        if origin in allowed or origin.startswith('http://127.0.0.1:') or origin.startswith('http://localhost:'):
+        cfg = get_config()
+        port = cfg.get('port', DEFAULT_PORT)
+        allowed = {f'http://127.0.0.1:{port}', f'http://localhost:{port}', 'http://127.0.0.1:8080', 'http://localhost:8080'}
+        if origin in allowed:
             self.send_header('Access-Control-Allow-Origin', origin)
         else:
-            self.send_header('Access-Control-Allow-Origin', 'http://127.0.0.1:8080')
+            self.send_header('Access-Control-Allow-Origin', f'http://127.0.0.1:{port}')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         self.send_header('Pragma', 'no-cache')
         self.send_header('Expires', '0')
         self.send_header('Vary', 'Origin')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
+        self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -295,7 +311,35 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        if clean_path == '/api/dataset':
+            accept_enc = self.headers.get('Accept-Encoding', '')
+            use_gzip = 'gzip' in accept_enc.lower()
+            body, mtime, is_gzipped = get_cached_dataset_body(accept_gzip=use_gzip)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            if is_gzipped:
+                self.send_header('Content-Encoding', 'gzip')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Last-Modified', str(mtime))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        super().do_GET()
+
+    def do_POST(self):
+        clean_path = self.path.split('?')[0]
+        content_length = int(self.headers.get('Content-Length', 0))
+
         if clean_path == '/api/restart':
+            origin = self.headers.get('Origin', '')
+            if origin and not (origin.startswith('http://127.0.0.1:') or origin.startswith('http://localhost:')):
+                self.send_response(403)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"error":"Forbidden"}')
+                return
+
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
@@ -317,36 +361,14 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             threading.Thread(target=do_restart, daemon=True).start()
             return
 
-        if clean_path == '/api/dataset':
-            accept_enc = self.headers.get('Accept-Encoding', '')
-            use_gzip = 'gzip' in accept_enc.lower()
-            body, mtime, is_gzipped = get_cached_dataset_body(accept_gzip=use_gzip)
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            if is_gzipped:
-                self.send_header('Content-Encoding', 'gzip')
-            self.send_header('Content-Length', str(len(body)))
-            self.send_header('Last-Modified', str(mtime))
-            self.end_headers()
-            self.wfile.write(body)
-            return
-
-        super().do_GET()
-
-    def do_POST(self):
-        clean_path = self.path.split('?')[0]
-        content_length = int(self.headers.get('Content-Length', 0))
-
-        # Max 100 MB generous payload safety limit
-        if content_length > 100 * 1024 * 1024:
-            self.send_response(413)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(b'{"error":"Payload Too Large"}')
-            return
-
         if clean_path == '/api/annotations':
-            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 1024 * 1024 or content_length <= 0:
+                self.send_response(413)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"error":"Payload size must be between 1 and 1MB"}')
+                return
+
             post_data = self.rfile.read(content_length)
             try:
                 payload = json.loads(post_data.decode('utf-8'))
@@ -369,8 +391,11 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                             annotations[key] = payload
                             with open(ann_file, 'w', encoding='utf-8') as f:
                                 json.dump(annotations, f, indent=2)
+
+                            # Safe script escaping: Neutralize script closing tags inside JSON string
+                            safe_js_json = json.dumps(annotations, indent=2).replace('<', '\\u003c').replace('>', '\\u003e')
                             with open(ann_js_file, 'w', encoding='utf-8') as f:
-                                f.write("window.SHARED_FIX_ANNOTATIONS = " + json.dumps(annotations, indent=2) + ";\n")
+                                f.write("window.SHARED_FIX_ANNOTATIONS = " + safe_js_json + ";\n")
                         except Exception as eSave:
                             print(f"[SAVE WARNING] Could not write to {td}: {eSave}")
 
@@ -386,7 +411,13 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
         if clean_path == '/api/dataset':
-            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 60 * 1024 * 1024 or content_length <= 0:
+                self.send_response(413)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"error":"Dataset payload must be <= 60MB"}')
+                return
+
             bytes_remaining = content_length
             chunks = []
             chunk_size = 65536
@@ -423,8 +454,10 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                                 f.write(compact_json_bytes)
                                 f.truncate()
 
+                            # Safe script escaping: Neutralize script closing tags inside JS companion bundle
+                            safe_dataset_js = compact_json_bytes.replace(b'<', b'\\u003c').replace(b'>', b'\\u003e')
                             with open(tmp_js, 'wb') as f:
-                                f.write(b"window.SHARED_DEFECT_DATA = " + compact_json_bytes + b";\n")
+                                f.write(b"window.SHARED_DEFECT_DATA = " + safe_dataset_js + b";\n")
                                 f.truncate()
 
                             if os.path.exists(tmp_json):

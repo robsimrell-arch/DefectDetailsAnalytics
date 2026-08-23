@@ -877,23 +877,32 @@ class MainPanel {
       'Solution Confirmed', 'Solution Memo', 'Failure Comment', 'Defect Comment', 'Debug Tech', 'Repair Description', 'Repair Comment'
     ];
 
+    const sanitizeCsvCell = (val) => {
+      if (val === null || val === undefined) return '""';
+      let str = String(val).replace(/"/g, '""');
+      if (/^[=\+\-\@\t\r]/.test(str)) {
+        str = "'" + str;
+      }
+      return `"${str}"`;
+    };
+
     const rows = records.map(r => [
-      `"${r.customer}"`,
-      `"${r.parentPartNo}"`,
-      `"${r.serialNo}"`,
-      `"${r.faDate}"`,
-      `"${r.processRecorded}"`,
-      `"${r.defectDescription}"`,
-      `"${r.defectCode}"`,
-      `"${r.refDes}"`,
-      r.defectQuantity,
-      `"${r.confirmedFix || 'Pending'}"`,
-      `"${(r.fixComment || '').replace(/"/g, '""')}"`,
-      `"${(r.failureComment || '').replace(/"/g, '""')}"`,
-      `"${(r.defectComment || '').replace(/"/g, '""')}"`,
-      `"${r.debugTech}"`,
-      `"${r.repairDescription}"`,
-      `"${(r.repairComment || '').replace(/"/g, '""')}"`
+      sanitizeCsvCell(r.customer),
+      sanitizeCsvCell(r.parentPartNo),
+      sanitizeCsvCell(r.serialNo),
+      sanitizeCsvCell(r.faDate),
+      sanitizeCsvCell(r.processRecorded),
+      sanitizeCsvCell(r.defectDescription),
+      sanitizeCsvCell(r.defectCode),
+      sanitizeCsvCell(r.refDes),
+      parseInt(r.defectQuantity, 10) || 1,
+      sanitizeCsvCell(r.confirmedFix || 'Pending'),
+      sanitizeCsvCell(r.fixComment),
+      sanitizeCsvCell(r.failureComment),
+      sanitizeCsvCell(r.defectComment),
+      sanitizeCsvCell(r.debugTech),
+      sanitizeCsvCell(r.repairDescription),
+      sanitizeCsvCell(r.repairComment)
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -919,7 +928,7 @@ class MainPanel {
 
     if (statusDiv) {
       if (window.dataStore.syncStatus === 'connected') {
-        statusDiv.innerHTML = `<span style="color: var(--accent-emerald); font-weight: 600;">⚡ Connected to Central Server: ${window.dataStore.activeServerUrl}</span>`;
+        statusDiv.innerHTML = `<span style="color: var(--accent-emerald); font-weight: 600;">⚡ Connected to Central Server: ${this.escapeHtml(window.dataStore.activeServerUrl)}</span>`;
       } else if (window.dataStore.syncStatus === 'shared_file') {
         statusDiv.innerHTML = `<span style="color: var(--accent-blue); font-weight: 600;">⚡ Shared Drive Network File Sync Active (file://)</span>`;
       } else {
@@ -937,7 +946,9 @@ class MainPanel {
 
       let html = '';
       candidates.forEach(url => {
-        html += `<button class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" onclick="document.getElementById('server-url-input').value='${url}'">${url}</button>`;
+        const safeUrl = this.escapeHtml(url);
+        const safeParamUrl = encodeURIComponent(url).replace(/'/g, '%27');
+        html += `<button type="button" class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" onclick="document.getElementById('server-url-input').value=decodeURIComponent('${safeParamUrl}')">${safeUrl}</button>`;
       });
       candidatesDiv.innerHTML = html;
     }
