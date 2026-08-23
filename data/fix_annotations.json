@@ -322,5 +322,105 @@
     "confirmedFix": "Pending",
     "fixComment": "",
     "updatedAt": "2026-08-18T20:21:22.826Z"
+  },
+  "BH0426BAE0293_8/6/2026 10:36:12 AM_D63_PART, MOUNTED WRONG": {
+    "key": "BH0426BAE0293_8/6/2026 10:36:12 AM_D63_PART, MOUNTED WRONG",
+    "serialNo": "BH0426BAE0293",
+    "faDate": "8/6/2026 10:36:12 AM",
+    "refDes": "D63",
+    "defectDescription": "PART, MOUNTED WRONG",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:24:51.716Z"
+  },
+  "BH0426BAE0293_8/6/2026 10:36:12 AM": {
+    "key": "BH0426BAE0293_8/6/2026 10:36:12 AM",
+    "serialNo": "BH0426BAE0293",
+    "faDate": "8/6/2026 10:36:12 AM",
+    "refDes": "D63",
+    "defectDescription": "PART, MOUNTED WRONG",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:24:51.716Z"
+  },
+  "BH2526BAE0059_8/6/2026 10:30:38 AM_D25_PART DAMAGED": {
+    "key": "BH2526BAE0059_8/6/2026 10:30:38 AM_D25_PART DAMAGED",
+    "serialNo": "BH2526BAE0059",
+    "faDate": "8/6/2026 10:30:38 AM",
+    "refDes": "D25",
+    "defectDescription": "PART DAMAGED",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:25:04.836Z"
+  },
+  "BH2526BAE0059_8/6/2026 10:30:38 AM": {
+    "key": "BH2526BAE0059_8/6/2026 10:30:38 AM",
+    "serialNo": "BH2526BAE0059",
+    "faDate": "8/6/2026 10:30:38 AM",
+    "refDes": "D25",
+    "defectDescription": "PART DAMAGED",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:25:04.836Z"
+  },
+  "BH2926BAE0704_8/6/2026 10:12:58 AM_C120_COMPONENT MISSING": {
+    "key": "BH2926BAE0704_8/6/2026 10:12:58 AM_C120_COMPONENT MISSING",
+    "serialNo": "BH2926BAE0704",
+    "faDate": "8/6/2026 10:12:58 AM",
+    "refDes": "C120",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:26:03.357Z"
+  },
+  "BH2926BAE0704_8/6/2026 10:12:58 AM": {
+    "key": "BH2926BAE0704_8/6/2026 10:12:58 AM",
+    "serialNo": "BH2926BAE0704",
+    "faDate": "8/6/2026 10:12:58 AM",
+    "refDes": "C120",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:26:03.357Z"
+  },
+  "BH2726BAE0009_7/24/2026 6:56:14 AM_CR2_COMPONENT MISSING": {
+    "key": "BH2726BAE0009_7/24/2026 6:56:14 AM_CR2_COMPONENT MISSING",
+    "serialNo": "BH2726BAE0009",
+    "faDate": "7/24/2026 6:56:14 AM",
+    "refDes": "CR2",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "No",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:27:03.870Z"
+  },
+  "BH2726BAE0009_7/24/2026 6:56:14 AM": {
+    "key": "BH2726BAE0009_7/24/2026 6:56:14 AM",
+    "serialNo": "BH2726BAE0009",
+    "faDate": "7/24/2026 6:56:14 AM",
+    "refDes": "CR2",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "No",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:27:03.870Z"
+  },
+  "BH2326BAE0093_6/20/2026 9:48:15 AM_C1_COMPONENT MISSING": {
+    "key": "BH2326BAE0093_6/20/2026 9:48:15 AM_C1_COMPONENT MISSING",
+    "serialNo": "BH2326BAE0093",
+    "faDate": "6/20/2026 9:48:15 AM",
+    "refDes": "C1",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "No",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:27:10.564Z"
+  },
+  "BH2326BAE0093_6/20/2026 9:48:15 AM": {
+    "key": "BH2326BAE0093_6/20/2026 9:48:15 AM",
+    "serialNo": "BH2326BAE0093",
+    "faDate": "6/20/2026 9:48:15 AM",
+    "refDes": "C1",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "No",
+    "fixComment": "",
+    "updatedAt": "2026-08-23T01:27:10.564Z"
   }
 }
