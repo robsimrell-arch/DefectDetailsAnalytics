@@ -102,17 +102,17 @@ def find_network_share_data_dir():
 
 def get_all_candidate_data_dirs():
     dirs = []
-    # 1. Primary: Shared Central Network Drive (\\bench.com\...)
+    # 1. In-Place APP_DIR data directory (Always primary wherever the folder is located or moved)
+    in_place_data = os.path.join(APP_DIR, 'data')
+    if os.path.exists(in_place_data):
+        dirs.append(in_place_data)
+
+    # 2. Configured Shared Network Drive (If explicitly configured in shared_config.json)
     net_data = find_network_share_data_dir()
     if net_data and net_data not in dirs:
         dirs.append(net_data)
 
-    # 2. Local / In-Place APP_DIR data directory
-    local_data = os.path.join(APP_DIR, 'data')
-    if local_data not in dirs:
-        dirs.append(local_data)
-
-    return dirs
+    return dirs if dirs else [os.path.join(APP_DIR, 'data')]
 
 def get_data_dir():
     dirs = get_all_candidate_data_dirs()
