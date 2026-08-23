@@ -76,19 +76,16 @@ function Close-Splash() {
     }
 }
 
-# 2. CHECK IF SERVER IS ALREADY ACTIVE (INSTANT 0.1s LAUNCH)
+# 2. CHECK IF SERVER IS ALREADY ACTIVE AND RESPONDING (INSTANT 0.1s LAUNCH)
 $alreadyRunning = $false
 try {
-    $client = New-Object System.Net.Sockets.TcpClient
-    $iar = $client.BeginConnect('127.0.0.1', 8080, $null, $null)
-    $wait = $iar.AsyncWaitHandle.WaitOne(150, $false)
-    if ($wait -and $client.Connected) {
-        $client.EndConnect($iar)
-        $client.Close()
+    $req = [System.Net.WebRequest]::Create('http://127.0.0.1:8080/api/status')
+    $req.Timeout = 250
+    $resp = $req.GetResponse()
+    if ($resp.StatusCode -eq 200) {
         $alreadyRunning = $true
-    } else {
-        $client.Close()
     }
+    $resp.Close()
 } catch {}
 
 if ($alreadyRunning) {
@@ -104,15 +101,15 @@ if ($alreadyRunning) {
 Update-SplashStatus "Starting local data engine..."
 
 # Find best python executable
-$pythonExe = "pythonw.exe"
+$pythonExe = "python.exe"
 if (Test-Path "C:\Python314\pythonw.exe") {
     $pythonExe = "C:\Python314\pythonw.exe"
 } elseif (Test-Path "C:\Python314\python.exe") {
     $pythonExe = "C:\Python314\python.exe"
 } elseif (Get-Command pythonw -ErrorAction SilentlyContinue) {
-    $pythonExe = "pythonw"
+    $pythonExe = "pythonw.exe"
 } elseif (Get-Command python -ErrorAction SilentlyContinue) {
-    $pythonExe = "python"
+    $pythonExe = "python.exe"
 }
 
 $serverPy = Join-Path $ShareDir "server.py"
@@ -121,25 +118,24 @@ $serverExe = Join-Path $ShareDir "server.exe"
 if (Test-Path $serverExe) {
     Start-Process -FilePath $serverExe -WorkingDirectory $ShareDir -WindowStyle Hidden
 } elseif (Test-Path $serverPy) {
-    Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $ShareDir -WindowStyle Hidden
+    Start-Process -FilePath $pythonExe -ArgumentList "server.py" -WorkingDirectory $ShareDir -WindowStyle Hidden
 }
 
 # 4. FAST POLLING LOOP (50ms intervals)
 Update-SplashStatus "Loading defect records..."
 $connected = $false
 
-for ($i = 0; $i -lt 120; $i++) {
+for ($i = 0; $i -lt 100; $i++) {
     try {
-        $client = New-Object System.Net.Sockets.TcpClient
-        $iar = $client.BeginConnect('127.0.0.1', 8080, $null, $null)
-        $wait = $iar.AsyncWaitHandle.WaitOne(80, $false)
-        if ($wait -and $client.Connected) {
-            $client.EndConnect($iar)
-            $client.Close()
+        $req = [System.Net.WebRequest]::Create('http://127.0.0.1:8080/api/status')
+        $req.Timeout = 150
+        $resp = $req.GetResponse()
+        if ($resp.StatusCode -eq 200) {
+            $resp.Close()
             $connected = $true
             break
         }
-        $client.Close()
+        $resp.Close()
     } catch {}
     
     [System.Windows.Forms.Application]::DoEvents()

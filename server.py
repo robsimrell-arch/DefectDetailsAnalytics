@@ -6,6 +6,15 @@ import sys
 import threading
 import gzip
 
+class NullWriter:
+    def write(self, s): pass
+    def flush(self): pass
+
+if sys.stdout is None:
+    sys.stdout = NullWriter()
+if sys.stderr is None:
+    sys.stderr = NullWriter()
+
 dataset_lock = threading.Lock()
 annotations_lock = threading.Lock()
 
@@ -202,6 +211,13 @@ def get_cached_dataset_body(accept_gzip=False):
             return b'[]', 0, False
 
 class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        try:
+            if sys.stderr and hasattr(sys.stderr, 'write'):
+                sys.stderr.write("%s - - [%s] %s\n" % (self.address_string(), self.log_date_time_string(), format%args))
+        except Exception:
+            pass
+
     def end_headers(self):
         origin = self.headers.get('Origin', '')
         allowed = {'http://127.0.0.1:8080', 'http://localhost:8080', 'null'}
