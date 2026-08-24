@@ -335,7 +335,6 @@ class MainPanel {
       if (fix === 'Yes') globalYes++;
       else if (fix === 'No') globalNo++;
     }
-    const globalPending = globalTotal - (globalYes + globalNo);
 
     const selectedTotal = records.length;
     let selectedYes = 0;
@@ -345,7 +344,6 @@ class MainPanel {
       if (fix === 'Yes') selectedYes++;
       else if (fix === 'No') selectedNo++;
     }
-    const selectedPending = selectedTotal - (selectedYes + selectedNo);
 
     const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
@@ -359,7 +357,6 @@ class MainPanel {
     const dispTotal = isFiltered ? selectedTotal : globalTotal;
     const dispYes = isFiltered ? selectedYes : globalYes;
     const dispNo = isFiltered ? selectedNo : globalNo;
-    const dispPending = isFiltered ? selectedPending : globalPending;
 
     this.statsContainer.innerHTML = `
       <div class="stat-card">
@@ -392,17 +389,6 @@ class MainPanel {
           <span class="stat-value" style="color: var(--accent-rose);">${dispNo.toLocaleString()}</span>
           <span class="stat-label">Fixes Failed</span>
           ${countSubLabel(globalNo)}
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrapper amber">
-          <i data-lucide="help-circle"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value" style="color: var(--accent-amber);">${dispPending.toLocaleString()}</span>
-          <span class="stat-label">Pending Verification</span>
-          ${countSubLabel(globalPending)}
         </div>
       </div>
     `;
