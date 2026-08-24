@@ -1586,9 +1586,8 @@ class DataStore {
     this.updateSyncBadgeOnly();
   }
 
-  getActiveRecords() {
-    let matched = this.rawRecords;
-
+  getBaseFilteredRecords() {
+    let matched = this.rawRecords || [];
     matched = matched.filter(r => this.isDateInFilter(r.faDate));
 
     if (this.selectedNode) {
@@ -1601,10 +1600,6 @@ class DataStore {
         if (level >= 5 && rec.refDes !== refDes) return false;
         return true;
       });
-    }
-
-    if (this.fixFilter !== 'all') {
-      matched = matched.filter(r => r.confirmedFix === this.fixFilter);
     }
 
     if (this.searchQuery) {
@@ -1635,6 +1630,16 @@ class DataStore {
           return (r._searchStr || '').includes(q);
         }
       });
+    }
+
+    return matched;
+  }
+
+  getActiveRecords() {
+    let matched = this.getBaseFilteredRecords();
+
+    if (this.fixFilter !== 'all') {
+      matched = matched.filter(r => r.confirmedFix === this.fixFilter);
     }
 
     return matched.sort((a, b) => this.parseDate(b.faDate) - this.parseDate(a.faDate));

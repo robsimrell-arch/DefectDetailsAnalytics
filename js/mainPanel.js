@@ -66,7 +66,8 @@ class MainPanel {
   }
 
   get breadcrumbContainer() { return document.getElementById('breadcrumb-bar'); }
-  get statsContainer() { return document.getElementById('stats-grid'); }
+  get headerTotalContainer() { return document.getElementById('header-total-records'); }
+  get statsContainer() { return document.getElementById('header-total-records'); }
   get commentsContainer() { return document.getElementById('comments-feed'); }
   get commentsTitle() { return document.getElementById('comments-title'); }
   get tableBody() { return document.getElementById('table-body'); }
@@ -262,6 +263,14 @@ class MainPanel {
     }, 2000);
   }
 
+  toggleFixFilter(status) {
+    if (window.dataStore.fixFilter === status) {
+      window.dataStore.setFixFilter('all');
+    } else {
+      window.dataStore.setFixFilter(status);
+    }
+  }
+
   renderBreadcrumbs(selected) {
     if (!this.breadcrumbContainer) return;
 
@@ -296,18 +305,36 @@ class MainPanel {
       }
     }
 
-    html += `<div style="display: flex; align-items: center; gap: 0.5rem;">${trail.join('')}</div>`;
+    html += `<div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">${trail.join('')}</div>`;
+
+    const baseRecs = window.dataStore ? window.dataStore.getBaseFilteredRecords() : [];
+    let yesCount = 0;
+    let noCount = 0;
+    for (let i = 0; i < baseRecs.length; i++) {
+      const fix = baseRecs[i].confirmedFix;
+      if (fix === 'Yes') yesCount++;
+      else if (fix === 'No') noCount++;
+    }
+
+    const activeFix = window.dataStore ? window.dataStore.fixFilter : 'all';
 
     html += `
-      <div style="display: flex; align-items: center; gap: 0.75rem;">
-        <div style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem;">
-          <span style="color: var(--text-muted); font-weight: 500;">Solution Filter:</span>
-          <select id="fix-filter-select" onchange="window.dataStore.setFixFilter(this.value)" class="search-target-select">
-            <option value="all" ${window.dataStore.fixFilter === 'all' ? 'selected' : ''}>All Records</option>
-            <option value="Yes" ${window.dataStore.fixFilter === 'Yes' ? 'selected' : ''}>Solution Confirmed (Yes)</option>
-            <option value="No" ${window.dataStore.fixFilter === 'No' ? 'selected' : ''}>Fix Failed (No)</option>
-            <option value="Pending" ${window.dataStore.fixFilter === 'Pending' ? 'selected' : ''}>Pending Verification</option>
-          </select>
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <div class="solution-pills-group">
+          <button type="button" 
+                  class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
+                  onclick="window.mainPanel.toggleFixFilter('Yes')" 
+                  title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solutions Confirmed (Yes)'}">
+            <span>✅ Confirmed</span>
+            <span class="pill-count">${yesCount.toLocaleString()}</span>
+          </button>
+          <button type="button" 
+                  class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
+                  onclick="window.mainPanel.toggleFixFilter('No')" 
+                  title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Fixes Failed (No)'}">
+            <span>❌ Failed</span>
+            <span class="pill-count">${noCount.toLocaleString()}</span>
+          </button>
         </div>
 
         <button class="btn btn-clear-filter" onclick="window.dataStore.clearAllFilters()" title="Reset all tree and search filters">
@@ -323,180 +350,28 @@ class MainPanel {
   }
 
   renderStats(records) {
-    if (!this.statsContainer) return;
+    const headerTotalEl = document.getElementById('header-total-records');
+    if (!headerTotalEl) return;
 
     const allRaw = window.dataStore.rawRecords || [];
     const globalTotal = allRaw.length;
-
-    let globalYes = 0;
-    let globalNo = 0;
-    for (let i = 0; i < globalTotal; i++) {
-      const fix = allRaw[i].confirmedFix;
-      if (fix === 'Yes') globalYes++;
-      else if (fix === 'No') globalNo++;
-    }
-
-    const selectedTotal = records.length;
-    let selectedYes = 0;
-    let selectedNo = 0;
-    const descCounts = new Map();
-    const procCounts = new Map();
-    const refCounts = new Map();
-
-    for (let i = 0; i < selectedTotal; i++) {
-      const r = records[i];
-      const fix = r.confirmedFix;
-      if (fix === 'Yes') selectedYes++;
-      else if (fix === 'No') selectedNo++;
-
-      const desc = (r.defectDescription || 'UNSPECIFIED').trim();
-      if (desc) descCounts.set(desc, (descCounts.get(desc) || 0) + 1);
-
-      const proc = (r.processRecorded || 'UNSPECIFIED PROCESS').trim();
-      if (proc) procCounts.set(proc, (procCounts.get(proc) || 0) + 1);
-
-      const ref = (r.refDes || '').trim();
-      if (ref && ref.toUpperCase() !== 'N/A' && ref !== '-') {
-        refCounts.set(ref, (refCounts.get(ref) || 0) + 1);
-      }
-    }
-
-    const top3Desc = Array.from(descCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]) => ({
-        name,
-        count,
-        pct: selectedTotal > 0 ? ((count / selectedTotal) * 100).toFixed(0) : 0
-      }));
-
-    const top3Proc = Array.from(procCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]) => ({
-        name,
-        count,
-        pct: selectedTotal > 0 ? ((count / selectedTotal) * 100).toFixed(0) : 0
-      }));
-
-    const top3Ref = Array.from(refCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]) => ({
-        name,
-        count,
-        pct: selectedTotal > 0 ? ((count / selectedTotal) * 100).toFixed(0) : 0
-      }));
-
+    const selectedTotal = records ? records.length : 0;
     const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
-    const countSubLabel = (globalVal) => {
-      if (isFiltered) {
-        return `<span style="font-size: 0.7rem; color: var(--text-muted); display: block;">${globalVal.toLocaleString()} global</span>`;
-      }
-      return '';
-    };
-
-    const dispTotal = isFiltered ? selectedTotal : globalTotal;
-    const dispYes = isFiltered ? selectedYes : globalYes;
-    const dispNo = isFiltered ? selectedNo : globalNo;
-
-    const renderTop3List = (items, emptyLabel) => {
-      if (!items || items.length === 0) {
-        return `<div style="font-size: 0.72rem; color: var(--text-muted); font-style: italic; margin-top: 6px;">${emptyLabel}</div>`;
-      }
-      return `
-        <div class="top3-list">
-          ${items.map((item, idx) => `
-            <div class="top3-item" onclick="window.mainPanel.handleTop3Click('${this.safeParam(item.name)}')" title="Click to filter by '${this.escapeHtml(item.name)}' (${item.count.toLocaleString()} records • ${item.pct}%)">
-              <div class="top3-left">
-                <span class="top3-rank rank-${idx + 1}">${idx + 1}</span>
-                <span class="top3-name">${this.escapeHtml(item.name)}</span>
-              </div>
-              <span class="top3-metric">${item.count.toLocaleString()} <span style="font-size: 0.62rem; color: var(--text-muted); font-weight: 400;">(${item.pct}%)</span></span>
-            </div>
-          `).join('')}
-        </div>
+    if (isFiltered) {
+      headerTotalEl.innerHTML = `
+        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+        <span>${selectedTotal.toLocaleString()}</span>
+        <span class="badge-global">/ ${globalTotal.toLocaleString()} records</span>
       `;
-    };
-
-    this.statsContainer.innerHTML = `
-      <div class="stat-card">
-        <div class="stat-icon-wrapper">
-          <i data-lucide="file-text"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value">${dispTotal.toLocaleString()}</span>
-          <span class="stat-label">Total Records</span>
-          ${countSubLabel(globalTotal)}
-        </div>
-      </div>
-
-      <div class="stat-card top3-card">
-        <div class="stat-icon-wrapper amber">
-          <i data-lucide="activity"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Processes</span>
-          ${renderTop3List(top3Proc, 'No process data')}
-        </div>
-      </div>
-
-      <div class="stat-card top3-card">
-        <div class="stat-icon-wrapper purple">
-          <i data-lucide="alert-triangle"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Defect Modes</span>
-          ${renderTop3List(top3Desc, 'No defect data')}
-        </div>
-      </div>
-
-      <div class="stat-card top3-card">
-        <div class="stat-icon-wrapper cyan">
-          <i data-lucide="map-pin"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Ref Des</span>
-          ${renderTop3List(top3Ref, 'No Ref Des data')}
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrapper emerald">
-          <i data-lucide="check-circle-2"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value" style="color: var(--accent-emerald);">${dispYes.toLocaleString()}</span>
-          <span class="stat-label">Solutions Confirmed</span>
-          ${countSubLabel(globalYes)}
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrapper rose">
-          <i data-lucide="x-circle"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value" style="color: var(--accent-rose);">${dispNo.toLocaleString()}</span>
-          <span class="stat-label">Fixes Failed</span>
-          ${countSubLabel(globalNo)}
-        </div>
-      </div>
-    `;
-
-    if (window.lucide) window.lucide.createIcons({ el: this.statsContainer });
-  }
-
-  handleTop3Click(encodedTerm) {
-    const term = decodeURIComponent(encodedTerm || '');
-    if (!term) return;
-    if (window.dataStore) {
-      window.dataStore.setSearchQuery(term);
-      const searchInput = document.getElementById('search-input');
-      if (searchInput) searchInput.value = term;
-      this.showToast(`Filtered by: "${term}"`);
+    } else {
+      headerTotalEl.innerHTML = `
+        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+        <span>${globalTotal.toLocaleString()} Total Records</span>
+      `;
     }
+
+    if (window.lucide) window.lucide.createIcons({ el: headerTotalEl });
   }
 
   renderComments(selected, records) {
