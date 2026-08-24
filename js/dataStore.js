@@ -869,9 +869,6 @@ class DataStore {
     if (!sentSuccess) {
       if (this.sharedFileHandle) {
         await this.autoSaveSharedFixes();
-      } else if (window.location.protocol === 'file:') {
-        // Automatically prompt to connect shared file handle on file:// protocol
-        await this.bindSharedFileForAutoSave();
       } else {
         this.enqueueOfflinePayload(payload);
       }

@@ -11,8 +11,8 @@ build/
 dist/
 _internal/
 *.spec
-*.exe
 *.lnk
+!server.exe
 
 # Temporary files
 _fix_vbs.py
