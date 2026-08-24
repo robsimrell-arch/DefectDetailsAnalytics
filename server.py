@@ -105,23 +105,25 @@ def find_network_share_data_dir():
         _cached_network_share_dir = None
         return None
 
-def get_all_candidate_data_dirs():
-    dirs = []
-    # 1. In-Place APP_DIR data directory (Always primary wherever the folder is located or moved)
+def get_master_data_dir():
+    net_data = find_network_share_data_dir()
+    if net_data and os.path.exists(net_data):
+        return net_data
     in_place_data = os.path.join(APP_DIR, 'data')
     if os.path.exists(in_place_data):
-        dirs.append(in_place_data)
+        return in_place_data
+    return os.path.join(APP_DIR, 'data')
 
-    # 2. Configured Shared Network Drive (If explicitly configured in shared_config.json)
-    net_data = find_network_share_data_dir()
-    if net_data and net_data not in dirs:
-        dirs.append(net_data)
-
-    return dirs if dirs else [os.path.join(APP_DIR, 'data')]
+def get_all_candidate_data_dirs():
+    master = get_master_data_dir()
+    dirs = [master]
+    in_place = os.path.join(APP_DIR, 'data')
+    if in_place != master and os.path.exists(in_place):
+        dirs.append(in_place)
+    return dirs
 
 def get_data_dir():
-    dirs = get_all_candidate_data_dirs()
-    return dirs[0] if dirs else os.path.join(APP_DIR, 'data')
+    return get_master_data_dir()
 
 dataset_cache_records = None
 dataset_cache_mtime = 0
@@ -130,29 +132,22 @@ dataset_cache_gzip_bytes = None
 dataset_cache_lock = threading.Lock()
 
 def find_best_dataset_file():
+    master_dir = get_master_data_dir()
+    master_path = os.path.join(master_dir, 'defect_details.json')
+    if os.path.exists(master_path):
+        try:
+            return master_path, os.path.getsize(master_path), int(os.path.getmtime(master_path))
+        except Exception:
+            pass
+
     local_path = os.path.join(APP_DIR, 'data', 'defect_details.json')
-    local_exists = os.path.exists(local_path)
-    local_size = os.path.getsize(local_path) if local_exists else -1
-    local_mtime = int(os.path.getmtime(local_path)) if local_exists else -1
+    if os.path.exists(local_path):
+        try:
+            return local_path, os.path.getsize(local_path), int(os.path.getmtime(local_path))
+        except Exception:
+            pass
 
-    # Check network share if distinct from local
-    net_data = find_network_share_data_dir()
-    if net_data and os.path.abspath(net_data) != os.path.abspath(os.path.join(APP_DIR, 'data')):
-        net_path = os.path.join(net_data, 'defect_details.json')
-        if check_path_fast(net_path, timeout=0.3):
-            try:
-                net_size = os.path.getsize(net_path)
-                net_mtime = int(os.path.getmtime(net_path))
-                # If network file is newer or larger than local, prioritize central network file
-                if net_size > local_size or (net_size == local_size and net_mtime > local_mtime + 5):
-                    return net_path, net_size, net_mtime
-            except Exception:
-                pass
-
-    if local_exists and local_size > 0:
-        return local_path, local_size, local_mtime
-
-    return local_path, local_size, local_mtime
+    return local_path, -1, -1
 
 def get_cached_dataset_body(accept_gzip=False):
     global dataset_cache_records, dataset_cache_mtime, dataset_cache_json_bytes, dataset_cache_gzip_bytes
@@ -289,32 +284,38 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         if clean_path == '/api/annotations':
-            target_dirs = get_all_candidate_data_dirs()
-            annotations = {}
-            for td in target_dirs:
-                anns_file = os.path.join(td, 'fix_annotations.json')
+            with annotations_lock:
+                master_dir = get_master_data_dir()
+                anns_file = os.path.join(master_dir, 'fix_annotations.json')
+                annotations = {}
                 if os.path.exists(anns_file):
                     try:
                         with open(anns_file, 'r', encoding='utf-8-sig') as f:
-                            data = json.load(f)
-                            if isinstance(data, dict):
-                                for k, v in data.items():
-                                    if k not in annotations:
-                                        annotations[k] = v
-                                    else:
-                                        t_cur = annotations[k].get('updatedAt', '')
-                                        t_new = v.get('updatedAt', '')
-                                        if t_new >= t_cur:
-                                            annotations[k] = v
+                            loaded = json.load(f)
+                            if isinstance(loaded, dict):
+                                annotations = loaded
                     except Exception as e:
-                        print(f"[ERROR] Failed reading {anns_file}: {e}")
-            body = json.dumps(annotations).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Content-Length', str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
+                        print(f"[ERROR] Failed reading master {anns_file}: {e}")
+
+                # If master was empty or failed, fallback to local
+                if not annotations:
+                    in_place_file = os.path.join(APP_DIR, 'data', 'fix_annotations.json')
+                    if os.path.exists(in_place_file) and in_place_file != anns_file:
+                        try:
+                            with open(in_place_file, 'r', encoding='utf-8-sig') as f:
+                                loaded = json.load(f)
+                                if isinstance(loaded, dict):
+                                    annotations = loaded
+                        except Exception:
+                            pass
+
+                body = json.dumps(annotations).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
 
         if clean_path == '/api/dataset':
             accept_enc = self.headers.get('Accept-Encoding', '')
@@ -377,32 +378,39 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             try:
                 payload = json.loads(post_data.decode('utf-8'))
-                target_dirs = get_all_candidate_data_dirs()
-
                 key = payload.get('key')
                 if key:
-                    for td in target_dirs:
-                        try:
-                            os.makedirs(td, exist_ok=True)
-                            ann_file = os.path.join(td, 'fix_annotations.json')
-                            ann_js_file = os.path.join(td, 'fix_annotations.js')
-                            annotations = {}
-                            if os.path.exists(ann_file):
-                                try:
-                                    with open(ann_file, 'r', encoding='utf-8') as f:
-                                        annotations = json.load(f)
-                                except Exception:
-                                    pass
-                            annotations[key] = payload
-                            with open(ann_file, 'w', encoding='utf-8') as f:
-                                json.dump(annotations, f, indent=2)
+                    with annotations_lock:
+                        target_dirs = get_all_candidate_data_dirs()
+                        master_dir = get_master_data_dir()
+                        master_file = os.path.join(master_dir, 'fix_annotations.json')
+                        
+                        annotations = {}
+                        if os.path.exists(master_file):
+                            try:
+                                with open(master_file, 'r', encoding='utf-8-sig') as f:
+                                    loaded = json.load(f)
+                                    if isinstance(loaded, dict):
+                                        annotations = loaded
+                            except Exception:
+                                pass
 
-                            # Safe script escaping: Neutralize script closing tags inside JSON string
-                            safe_js_json = json.dumps(annotations, indent=2).replace('<', '\\u003c').replace('>', '\\u003e')
-                            with open(ann_js_file, 'w', encoding='utf-8') as f:
-                                f.write("window.SHARED_FIX_ANNOTATIONS = " + safe_js_json + ";\n")
-                        except Exception as eSave:
-                            print(f"[SAVE WARNING] Could not write to {td}: {eSave}")
+                        annotations[key] = payload
+                        
+                        # Write to all candidate dirs (master network share first, then local cache)
+                        for td in target_dirs:
+                            try:
+                                os.makedirs(td, exist_ok=True)
+                                ann_file = os.path.join(td, 'fix_annotations.json')
+                                ann_js_file = os.path.join(td, 'fix_annotations.js')
+                                with open(ann_file, 'w', encoding='utf-8') as f:
+                                    json.dump(annotations, f, indent=2)
+
+                                safe_js_json = json.dumps(annotations, indent=2).replace('<', '\\u003c').replace('>', '\\u003e')
+                                with open(ann_js_file, 'w', encoding='utf-8') as f:
+                                    f.write("window.SHARED_FIX_ANNOTATIONS = " + safe_js_json + ";\n")
+                            except Exception as eSave:
+                                print(f"[SAVE WARNING] Could not write to {td}: {eSave}")
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
