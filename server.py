@@ -525,7 +525,7 @@ if __name__ == '__main__':
         selected_port = desired_port
 
         try:
-            httpd = ThreadedTCPServer(("0.0.0.0", desired_port), LocalHostServerHandler)
+            httpd = ThreadedTCPServer(("127.0.0.1", desired_port), LocalHostServerHandler)
         except Exception:
             # Port is already bound by an existing running server; exit cleanly without creating duplicates
             sys.exit(0)
