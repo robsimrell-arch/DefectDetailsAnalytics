@@ -433,22 +433,22 @@ class MainPanel {
       </div>
 
       <div class="stat-card top3-card">
-        <div class="stat-icon-wrapper purple">
-          <i data-lucide="alert-triangle"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Defect Modes</span>
-          ${renderTop3List(top3Desc, 'No defect data')}
-        </div>
-      </div>
-
-      <div class="stat-card top3-card">
         <div class="stat-icon-wrapper amber">
           <i data-lucide="activity"></i>
         </div>
         <div class="stat-info">
           <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Processes</span>
           ${renderTop3List(top3Proc, 'No process data')}
+        </div>
+      </div>
+
+      <div class="stat-card top3-card">
+        <div class="stat-icon-wrapper purple">
+          <i data-lucide="alert-triangle"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Defect Modes</span>
+          ${renderTop3List(top3Desc, 'No defect data')}
         </div>
       </div>
 
