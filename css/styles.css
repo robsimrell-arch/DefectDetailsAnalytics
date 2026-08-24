@@ -1451,7 +1451,7 @@ body {
 
 .data-table th {
   position: sticky;
-  top: calc(-1.5rem + 116px);
+  top: calc(-1.5rem + 56px);
   z-index: 20;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
