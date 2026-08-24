@@ -482,5 +482,295 @@ window.SHARED_FIX_ANNOTATIONS = {
     "confirmedFix": "Pending",
     "fixComment": "",
     "updatedAt": "2026-08-24T01:11:55.906Z"
+  },
+  "PB296578_8/18/2026 4:13:51 PM_R356_COMPONENT MISSING": {
+    "key": "PB296578_8/18/2026 4:13:51 PM_R356_COMPONENT MISSING",
+    "serialNo": "PB296578",
+    "faDate": "8/18/2026 4:13:51 PM",
+    "refDes": "R356",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Pending",
+    "fixComment": "",
+    "updatedAt": "2026-08-19T19:52:19.232Z"
+  },
+  "PB296578_8/18/2026 4:13:51 PM": {
+    "key": "PB296578_8/18/2026 4:13:51 PM",
+    "serialNo": "PB296578",
+    "faDate": "8/18/2026 4:13:51 PM",
+    "refDes": "R356",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Pending",
+    "fixComment": "",
+    "updatedAt": "2026-08-19T19:52:19.232Z"
+  },
+  "PB296430_8/18/2026 3:14:10 PM_R266_COMPONENT MISSING": {
+    "key": "PB296430_8/18/2026 3:14:10 PM_R266_COMPONENT MISSING",
+    "serialNo": "PB296430",
+    "faDate": "8/18/2026 3:14:10 PM",
+    "refDes": "R266",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Pending",
+    "fixComment": "",
+    "updatedAt": "2026-08-19T19:52:33.710Z"
+  },
+  "PB296430_8/18/2026 3:14:10 PM": {
+    "key": "PB296430_8/18/2026 3:14:10 PM",
+    "serialNo": "PB296430",
+    "faDate": "8/18/2026 3:14:10 PM",
+    "refDes": "R266",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Pending",
+    "fixComment": "",
+    "updatedAt": "2026-08-19T19:52:33.710Z"
+  },
+  "BH2532LSE0004_8/14/2025 12:13:30 PM_NO_REF_LSEMAINBD_FUNCTIONAL FAIL": {
+    "key": "BH2532LSE0004_8/14/2025 12:13:30 PM_NO_REF_LSEMAINBD_FUNCTIONAL FAIL",
+    "serialNo": "BH2532LSE0004",
+    "faDate": "8/14/2025 12:13:30 PM",
+    "refDes": "NO_REF_LSEMAINBD",
+    "defectDescription": "FUNCTIONAL FAIL",
+    "confirmedFix": "Pending",
+    "fixComment": "",
+    "updatedAt": "2026-08-18T23:14:41.525Z"
+  },
+  "BH2532LSE0004_8/14/2025 12:13:30 PM": {
+    "key": "BH2532LSE0004_8/14/2025 12:13:30 PM",
+    "serialNo": "BH2532LSE0004",
+    "faDate": "8/14/2025 12:13:30 PM",
+    "refDes": "NO_REF_LSEMAINBD",
+    "defectDescription": "FUNCTIONAL FAIL",
+    "confirmedFix": "Pending",
+    "fixComment": "",
+    "updatedAt": "2026-08-18T23:14:41.525Z"
+  },
+  "BH1721BAE0514_10/14/2024 7:41:52 AM_L1_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH1721BAE0514_10/14/2024 7:41:52 AM_L1_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH1721BAE0514",
+    "faDate": "10/14/2024 7:41:52 AM",
+    "refDes": "L1",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:12:11.263Z"
+  },
+  "BH1721BAE0514_10/14/2024 7:41:52 AM": {
+    "key": "BH1721BAE0514_10/14/2024 7:41:52 AM",
+    "serialNo": "BH1721BAE0514",
+    "faDate": "10/14/2024 7:41:52 AM",
+    "refDes": "L1",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:12:11.263Z"
+  },
+  "BH4820BAE0146_1/30/2025 12:36:26 PM_U41_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH4820BAE0146_1/30/2025 12:36:26 PM_U41_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH4820BAE0146",
+    "faDate": "1/30/2025 12:36:26 PM",
+    "refDes": "U41",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:13:37.479Z"
+  },
+  "BH4820BAE0146_1/30/2025 12:36:26 PM": {
+    "key": "BH4820BAE0146_1/30/2025 12:36:26 PM",
+    "serialNo": "BH4820BAE0146",
+    "faDate": "1/30/2025 12:36:26 PM",
+    "refDes": "U41",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:13:37.479Z"
+  },
+  "BH3824BAE0107_2/10/2025 12:38:19 PM_Q14_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH3824BAE0107_2/10/2025 12:38:19 PM_Q14_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH3824BAE0107",
+    "faDate": "2/10/2025 12:38:19 PM",
+    "refDes": "Q14",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "See Jared for Schematic and Debug Technique.",
+    "updatedAt": "2026-08-21T17:20:30.253Z"
+  },
+  "BH3824BAE0107_2/10/2025 12:38:19 PM": {
+    "key": "BH3824BAE0107_2/10/2025 12:38:19 PM",
+    "serialNo": "BH3824BAE0107",
+    "faDate": "2/10/2025 12:38:19 PM",
+    "refDes": "Q14",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "See Jared for Schematic and Debug Technique.",
+    "updatedAt": "2026-08-21T17:20:30.253Z"
+  },
+  "BH5224BAE0033_3/4/2025 2:31:09 PM_Q14_PART, MOUNTED WRONG": {
+    "key": "BH5224BAE0033_3/4/2025 2:31:09 PM_Q14_PART, MOUNTED WRONG",
+    "serialNo": "BH5224BAE0033",
+    "faDate": "3/4/2025 2:31:09 PM",
+    "refDes": "Q14",
+    "defectDescription": "PART, MOUNTED WRONG",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:22:00.552Z"
+  },
+  "BH5224BAE0033_3/4/2025 2:31:09 PM": {
+    "key": "BH5224BAE0033_3/4/2025 2:31:09 PM",
+    "serialNo": "BH5224BAE0033",
+    "faDate": "3/4/2025 2:31:09 PM",
+    "refDes": "Q14",
+    "defectDescription": "PART, MOUNTED WRONG",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:22:00.552Z"
+  },
+  "BH5224BAE0038_2/18/2025 1:57:10 PM_D3_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH5224BAE0038_2/18/2025 1:57:10 PM_D3_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH5224BAE0038",
+    "faDate": "2/18/2025 1:57:10 PM",
+    "refDes": "D3",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:24:38.838Z"
+  },
+  "BH5224BAE0038_2/18/2025 1:57:10 PM": {
+    "key": "BH5224BAE0038_2/18/2025 1:57:10 PM",
+    "serialNo": "BH5224BAE0038",
+    "faDate": "2/18/2025 1:57:10 PM",
+    "refDes": "D3",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:24:38.838Z"
+  },
+  "BH1824BAE0016_2/25/2025 11:27:47 AM_U21_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH1824BAE0016_2/25/2025 11:27:47 AM_U21_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH1824BAE0016",
+    "faDate": "2/25/2025 11:27:47 AM",
+    "refDes": "U21",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:25:29.017Z"
+  },
+  "BH1824BAE0016_2/25/2025 11:27:47 AM": {
+    "key": "BH1824BAE0016_2/25/2025 11:27:47 AM",
+    "serialNo": "BH1824BAE0016",
+    "faDate": "2/25/2025 11:27:47 AM",
+    "refDes": "U21",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:25:29.017Z"
+  },
+  "BH3024BAE0148_2/25/2025 1:41:18 PM_U22_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH3024BAE0148_2/25/2025 1:41:18 PM_U22_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH3024BAE0148",
+    "faDate": "2/25/2025 1:41:18 PM",
+    "refDes": "U22",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:26:54.255Z"
+  },
+  "BH3024BAE0148_2/25/2025 1:41:18 PM": {
+    "key": "BH3024BAE0148_2/25/2025 1:41:18 PM",
+    "serialNo": "BH3024BAE0148",
+    "faDate": "2/25/2025 1:41:18 PM",
+    "refDes": "U22",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:26:54.255Z"
+  },
+  "BH3621BAE0214_3/17/2025 3:15:32 PM_Q7_COMPONENT MISSING": {
+    "key": "BH3621BAE0214_3/17/2025 3:15:32 PM_Q7_COMPONENT MISSING",
+    "serialNo": "BH3621BAE0214",
+    "faDate": "3/17/2025 3:15:32 PM",
+    "refDes": "Q7",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:27:51.689Z"
+  },
+  "BH3621BAE0214_3/17/2025 3:15:32 PM": {
+    "key": "BH3621BAE0214_3/17/2025 3:15:32 PM",
+    "serialNo": "BH3621BAE0214",
+    "faDate": "3/17/2025 3:15:32 PM",
+    "refDes": "Q7",
+    "defectDescription": "COMPONENT MISSING",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:27:51.689Z"
+  },
+  "BH0422BAE0399_6/25/2025 10:58:19 AM_Q6_INSUFFICIENT SOLDER": {
+    "key": "BH0422BAE0399_6/25/2025 10:58:19 AM_Q6_INSUFFICIENT SOLDER",
+    "serialNo": "BH0422BAE0399",
+    "faDate": "6/25/2025 10:58:19 AM",
+    "refDes": "Q6",
+    "defectDescription": "INSUFFICIENT SOLDER",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:29:16.405Z"
+  },
+  "BH0422BAE0399_6/25/2025 10:58:19 AM": {
+    "key": "BH0422BAE0399_6/25/2025 10:58:19 AM",
+    "serialNo": "BH0422BAE0399",
+    "faDate": "6/25/2025 10:58:19 AM",
+    "refDes": "Q6",
+    "defectDescription": "INSUFFICIENT SOLDER",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:29:16.405Z"
+  },
+  "BH2421BAE1128_6/20/2025 10:07:46 AM_U2_ELECTRICALLY DEFECTIVE COMPONENT": {
+    "key": "BH2421BAE1128_6/20/2025 10:07:46 AM_U2_ELECTRICALLY DEFECTIVE COMPONENT",
+    "serialNo": "BH2421BAE1128",
+    "faDate": "6/20/2025 10:07:46 AM",
+    "refDes": "U2",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:30:12.350Z"
+  },
+  "BH2421BAE1128_6/20/2025 10:07:46 AM": {
+    "key": "BH2421BAE1128_6/20/2025 10:07:46 AM",
+    "serialNo": "BH2421BAE1128",
+    "faDate": "6/20/2025 10:07:46 AM",
+    "refDes": "U2",
+    "defectDescription": "ELECTRICALLY DEFECTIVE COMPONENT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:30:12.350Z"
+  },
+  "BH1525BAE0130_12/3/2025 9:48:32 AM_R281_DEBUG ANALYSIS": {
+    "key": "BH1525BAE0130_12/3/2025 9:48:32 AM_R281_DEBUG ANALYSIS",
+    "serialNo": "BH1525BAE0130",
+    "faDate": "12/3/2025 9:48:32 AM",
+    "refDes": "R281",
+    "defectDescription": "DEBUG ANALYSIS",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-21T17:55:36.400Z"
+  },
+  "BH3226BAE0466_8/24/2026 8:50:22 AM_[Unassigned Ref Des]_UNSPECIFIED DEFECT": {
+    "key": "BH3226BAE0466_8/24/2026 8:50:22 AM_[Unassigned Ref Des]_UNSPECIFIED DEFECT",
+    "serialNo": "BH3226BAE0466",
+    "faDate": "8/24/2026 8:50:22 AM",
+    "refDes": "[Unassigned Ref Des]",
+    "defectDescription": "UNSPECIFIED DEFECT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-24T14:43:50.172Z"
+  },
+  "BH3226BAE0466_8/24/2026 8:50:22 AM": {
+    "key": "BH3226BAE0466_8/24/2026 8:50:22 AM",
+    "serialNo": "BH3226BAE0466",
+    "faDate": "8/24/2026 8:50:22 AM",
+    "refDes": "[Unassigned Ref Des]",
+    "defectDescription": "UNSPECIFIED DEFECT",
+    "confirmedFix": "Yes",
+    "fixComment": "",
+    "updatedAt": "2026-08-24T14:43:50.172Z"
   }
 };

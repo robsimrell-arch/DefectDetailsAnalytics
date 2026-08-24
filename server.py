@@ -41,10 +41,10 @@ def get_config():
     return cfg
 
 _cached_network_share_dir = None
-_network_share_checked = False
+_last_network_check_time = 0
 _network_share_lock = threading.Lock()
 
-def check_path_fast(path, timeout=0.3):
+def check_path_fast(path, timeout=1.5):
     """Fast check for path accessibility with timeout to prevent blocking on dead UNC shares."""
     if not path:
         return False
@@ -65,39 +65,41 @@ def check_path_fast(path, timeout=0.3):
     return result[0]
 
 def find_network_share_data_dir():
-    global _cached_network_share_dir, _network_share_checked
-    if _network_share_checked:
-        return _cached_network_share_dir
-
+    global _cached_network_share_dir, _last_network_check_time
+    now = time.time()
+    
+    # If cached and checked within last 30s, return cached path
     with _network_share_lock:
-        if _network_share_checked:
+        if _cached_network_share_dir and (now - _last_network_check_time < 30):
             return _cached_network_share_dir
+        
+        # Don't hammer failing network share more than once every 5 seconds
+        if not _cached_network_share_dir and (now - _last_network_check_time < 5):
+            return None
+
+        _last_network_check_time = now
         
         cfg = get_config()
         target_dir = cfg.get('shared_data_dir', '').strip()
         if target_dir:
             exp = os.path.expandvars(target_dir)
-            if exp and check_path_fast(exp, timeout=0.3):
+            if exp and check_path_fast(exp, timeout=1.5):
                 _cached_network_share_dir = exp
-                _network_share_checked = True
                 return exp
 
         net_share = cfg.get('network_share_dir', '').strip()
         if net_share:
             net_data = os.path.join(net_share, 'data')
-            if check_path_fast(net_data, timeout=0.3):
+            if check_path_fast(net_data, timeout=1.5):
                 _cached_network_share_dir = net_data
-                _network_share_checked = True
                 return net_data
 
         prod_share = r"\\bench.com\cuidata\HSV\TestENG\CUSTOMER_FVT\DefectAnalysis\data"
-        if check_path_fast(prod_share, timeout=0.3):
+        if check_path_fast(prod_share, timeout=1.5):
             _cached_network_share_dir = prod_share
-            _network_share_checked = True
             return prod_share
 
         _cached_network_share_dir = None
-        _network_share_checked = True
         return None
 
 def get_all_candidate_data_dirs():
