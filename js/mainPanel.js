@@ -340,6 +340,7 @@ class MainPanel {
     let selectedYes = 0;
     let selectedNo = 0;
     const descCounts = new Map();
+    const procCounts = new Map();
     const refCounts = new Map();
 
     for (let i = 0; i < selectedTotal; i++) {
@@ -351,6 +352,9 @@ class MainPanel {
       const desc = (r.defectDescription || 'UNSPECIFIED').trim();
       if (desc) descCounts.set(desc, (descCounts.get(desc) || 0) + 1);
 
+      const proc = (r.processRecorded || 'UNSPECIFIED PROCESS').trim();
+      if (proc) procCounts.set(proc, (procCounts.get(proc) || 0) + 1);
+
       const ref = (r.refDes || '').trim();
       if (ref && ref.toUpperCase() !== 'N/A' && ref !== '-') {
         refCounts.set(ref, (refCounts.get(ref) || 0) + 1);
@@ -358,6 +362,15 @@ class MainPanel {
     }
 
     const top3Desc = Array.from(descCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({
+        name,
+        count,
+        pct: selectedTotal > 0 ? ((count / selectedTotal) * 100).toFixed(0) : 0
+      }));
+
+    const top3Proc = Array.from(procCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([name, count]) => ({
@@ -426,6 +439,16 @@ class MainPanel {
         <div class="stat-info">
           <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Defect Modes</span>
           ${renderTop3List(top3Desc, 'No defect data')}
+        </div>
+      </div>
+
+      <div class="stat-card top3-card">
+        <div class="stat-icon-wrapper amber">
+          <i data-lucide="activity"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Processes</span>
+          ${renderTop3List(top3Proc, 'No process data')}
         </div>
       </div>
 
