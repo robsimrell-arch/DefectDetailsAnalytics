@@ -231,22 +231,16 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         origin = self.headers.get('Origin', '')
-        cfg = get_config()
-        port = cfg.get('port', DEFAULT_PORT)
-        allowed = {f'http://127.0.0.1:{port}', f'http://localhost:{port}', 'http://127.0.0.1:8080', 'http://localhost:8080'}
-        if origin in allowed:
+        if origin and origin != 'null':
             self.send_header('Access-Control-Allow-Origin', origin)
         else:
-            self.send_header('Access-Control-Allow-Origin', f'http://127.0.0.1:{port}')
+            self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        self.send_header('Access-Control-Allow-Private-Network', 'true')
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         self.send_header('Pragma', 'no-cache')
         self.send_header('Expires', '0')
-        self.send_header('Vary', 'Origin')
-        self.send_header('X-Content-Type-Options', 'nosniff')
-        self.send_header('X-Frame-Options', 'SAMEORIGIN')
-        self.send_header('Referrer-Policy', 'strict-origin-when-cross-origin')
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -531,7 +525,7 @@ if __name__ == '__main__':
         selected_port = desired_port
 
         try:
-            httpd = ThreadedTCPServer(("127.0.0.1", desired_port), LocalHostServerHandler)
+            httpd = ThreadedTCPServer(("0.0.0.0", desired_port), LocalHostServerHandler)
         except Exception:
             # Port is already bound by an existing running server; exit cleanly without creating duplicates
             sys.exit(0)
