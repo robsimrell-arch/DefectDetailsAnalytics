@@ -319,26 +319,20 @@ class MainPanel {
     const activeFix = window.dataStore ? window.dataStore.fixFilter : 'all';
 
     html += `
-      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-        <div class="solution-pills-group">
-          <button type="button" 
-                  class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
-                  onclick="window.mainPanel.toggleFixFilter('Yes')" 
-                  title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solutions Confirmed (Yes)'}">
-            <span>✅ Confirmed</span>
-            <span class="pill-count">${yesCount.toLocaleString()}</span>
-          </button>
-          <button type="button" 
-                  class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
-                  onclick="window.mainPanel.toggleFixFilter('No')" 
-                  title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Fixes Failed (No)'}">
-            <span>❌ Failed</span>
-            <span class="pill-count">${noCount.toLocaleString()}</span>
-          </button>
-        </div>
-
-        <button class="btn btn-clear-filter" onclick="window.dataStore.clearAllFilters()" title="Reset all tree and search filters">
-          <i data-lucide="filter-x"></i> Clear Filters
+      <div class="solution-pills-group">
+        <button type="button" 
+                class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
+                onclick="window.mainPanel.toggleFixFilter('Yes')" 
+                title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solutions Confirmed (Yes)'}">
+          <span>✅ Confirmed</span>
+          <span class="pill-count">${yesCount.toLocaleString()}</span>
+        </button>
+        <button type="button" 
+                class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
+                onclick="window.mainPanel.toggleFixFilter('No')" 
+                title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Fixes Failed (No)'}">
+          <span>❌ Failed</span>
+          <span class="pill-count">${noCount.toLocaleString()}</span>
         </button>
       </div>
     `;
