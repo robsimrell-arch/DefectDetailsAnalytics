@@ -97,71 +97,81 @@ if ($alreadyRunning) {
     exit 0
 }
 
-# 3. SYNC TO LOCAL C: DRIVE (%LOCALAPPDATA%\DefectAnalysisApp) FOR ULTRA-FAST & SECURE LOCAL EXECUTION
-Update-SplashStatus "Syncing local environment..."
-
-$LocalAppDir = Join-Path $env:LOCALAPPDATA "DefectAnalysisApp"
-if (-not (Test-Path $LocalAppDir)) {
-    New-Item -ItemType Directory -Path $LocalAppDir -Force | Out-Null
-}
-
-$localServerExe = Join-Path $LocalAppDir "server.exe"
-$shareServerExe = Join-Path $ShareDir "server.exe"
-
-# If running from network share or external folder, sync files locally to bypass UNC network execution limits
-if ($ShareDir -ne $LocalAppDir) {
-    if (Test-Path $shareServerExe) {
-        $needCopy = $true
-        if (Test-Path $localServerExe) {
-            if ((Get-Item $shareServerExe).LastWriteTime -le (Get-Item $localServerExe).LastWriteTime) {
-                $needCopy = $false
-            }
-        }
-        if ($needCopy) {
-            Copy-Item -Path $shareServerExe -Destination $localServerExe -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    # Sync web asset and data folders cleanly with Robocopy (transfers ONLY modified files in <0.05 seconds)
-    foreach ($folder in @("assets", "css", "js", "lib", "data")) {
-        $src = Join-Path $ShareDir $folder
-        $dst = Join-Path $LocalAppDir $folder
-        if (Test-Path $src) {
-            if (-not (Test-Path $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
-            robocopy "$src" "$dst" /MIR /XO /FFT /NDL /NFL /NJH /NJS /nc /ns /np | Out-Null
-        }
-    }
-
-    $shareIndex = Join-Path $ShareDir "index.html"
-    if (Test-Path $shareIndex) {
-        Copy-Item -Path $shareIndex -Destination (Join-Path $LocalAppDir "index.html") -Force -ErrorAction SilentlyContinue
-    }
-
-    $shareServerPy = Join-Path $ShareDir "server.py"
-    if (Test-Path $shareServerPy) {
-        Copy-Item -Path $shareServerPy -Destination (Join-Path $LocalAppDir "server.py") -Force -ErrorAction SilentlyContinue
-    }
-
-    $localDataDir = Join-Path $LocalAppDir "data"
-    if (-not (Test-Path $localDataDir)) { New-Item -ItemType Directory -Path $localDataDir -Force | Out-Null }
-
-    # Write shared_config.json so local server writes annotations to shared drive
-    $cfgObj = @{
-        shared_data_dir = (Join-Path $ShareDir "data")
-        network_share_dir = $ShareDir
-        port = 8080
-        comment = "Auto-configured shared network drive path"
-    }
-    $cfgJson = $cfgObj | ConvertTo-Json
-    Set-Content -Path (Join-Path $localDataDir "shared_config.json") -Value $cfgJson -Encoding UTF8
-}
-
-# 4. KILL ANY STALE UNRESPONSIVE SERVER PROCESSES BEFORE LAUNCH
+# 3. KILL ANY STALE UNRESPONSIVE SERVER PROCESSES BEFORE COPYING OR LAUNCHING
 try {
     Get-Process -Name "server" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 } catch {}
 
-# 5. START LOCAL BACKEND SERVER
+# 4. PREPARE EXECUTION ENVIRONMENT
+Update-SplashStatus "Starting local data engine..."
+
+$isNetworkShare = $false
+if ($ShareDir.StartsWith('\\')) {
+    $isNetworkShare = $true
+} else {
+    try {
+        $driveLetter = $ShareDir.Substring(0, 1)
+        $psDrive = Get-PSDrive -Name $driveLetter -ErrorAction SilentlyContinue
+        if ($psDrive -and $psDrive.DisplayRoot) {
+            $isNetworkShare = $true
+        }
+    } catch {}
+}
+
+$LocalAppDir = Join-Path $env:LOCALAPPDATA "DefectAnalysisApp"
+$targetDir = $ShareDir
+$targetExe = Join-Path $ShareDir "server.exe"
+
+if ($isNetworkShare) {
+    Update-SplashStatus "Syncing local launcher..."
+    try {
+        if (-not (Test-Path $LocalAppDir)) {
+            New-Item -ItemType Directory -Path $LocalAppDir -Force | Out-Null
+        }
+
+        $localServerExe = Join-Path $LocalAppDir "server.exe"
+        $shareServerExe = Join-Path $ShareDir "server.exe"
+
+        if (Test-Path $shareServerExe) {
+            if (-not (Test-Path $localServerExe) -or ((Get-Item $shareServerExe).LastWriteTime -gt (Get-Item $localServerExe).LastWriteTime)) {
+                Copy-Item -Path $shareServerExe -Destination $localServerExe -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # Sync web asset folders quickly (R:1 / W:1 prevents any indefinite retry hangs)
+        foreach ($folder in @("assets", "css", "js", "lib")) {
+            $src = Join-Path $ShareDir $folder
+            $dst = Join-Path $LocalAppDir $folder
+            if (Test-Path $src) {
+                if (-not (Test-Path $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
+                robocopy "$src" "$dst" /XO /FFT /NDL /NFL /NJH /NJS /nc /ns /np /R:1 /W:1 | Out-Null
+            }
+        }
+
+        $shareIndex = Join-Path $ShareDir "index.html"
+        if (Test-Path $shareIndex) {
+            Copy-Item -Path $shareIndex -Destination (Join-Path $LocalAppDir "index.html") -Force -ErrorAction SilentlyContinue
+        }
+
+        # Configure shared_data_dir so local server directly uses shared network drive data
+        $localDataDir = Join-Path $LocalAppDir "data"
+        if (-not (Test-Path $localDataDir)) { New-Item -ItemType Directory -Path $localDataDir -Force | Out-Null }
+
+        $cfgObj = @{
+            shared_data_dir = (Join-Path $ShareDir "data")
+            network_share_dir = $ShareDir
+            port = 8080
+            comment = "Auto-configured shared network drive path"
+        }
+        $cfgJson = $cfgObj | ConvertTo-Json
+        Set-Content -Path (Join-Path $localDataDir "shared_config.json") -Value $cfgJson -Encoding UTF8
+
+        $targetDir = $LocalAppDir
+        $targetExe = $localServerExe
+    } catch {}
+}
+
+# 5. START SERVER PROCESS
 Update-SplashStatus "Starting local data engine..."
 
 # Find python if server.exe is not available
@@ -176,24 +186,24 @@ if (Test-Path "C:\Python314\pythonw.exe") {
     $pythonExe = "python.exe"
 }
 
-if (Test-Path $localServerExe) {
-    Start-Process -FilePath $localServerExe -WorkingDirectory $LocalAppDir -WindowStyle Hidden
-} elseif (Test-Path (Join-Path $LocalAppDir "server.py")) {
-    Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $LocalAppDir -WindowStyle Hidden
-} elseif (Test-Path $shareServerExe) {
-    Start-Process -FilePath $shareServerExe -WorkingDirectory $ShareDir -WindowStyle Hidden
+if (Test-Path $targetExe) {
+    Start-Process -FilePath $targetExe -WorkingDirectory $targetDir -WindowStyle Hidden
+} elseif (Test-Path (Join-Path $targetDir "server.py")) {
+    Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $targetDir -WindowStyle Hidden
+} elseif (Test-Path (Join-Path $ShareDir "server.exe")) {
+    Start-Process -FilePath (Join-Path $ShareDir "server.exe") -WorkingDirectory $ShareDir -WindowStyle Hidden
 } elseif (Test-Path (Join-Path $ShareDir "server.py")) {
     Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $ShareDir -WindowStyle Hidden
 }
 
-# 6. FAST POLLING LOOP (50ms intervals)
+# 6. FAST POLLING LOOP (100ms intervals)
 Update-SplashStatus "Loading defect records..."
 $connected = $false
 
-for ($i = 0; $i -lt 100; $i++) {
+for ($i = 0; $i -lt 80; $i++) {
     try {
         $req = [System.Net.WebRequest]::Create('http://127.0.0.1:8080/api/status')
-        $req.Timeout = 150
+        $req.Timeout = 200
         $resp = $req.GetResponse()
         if ($resp.StatusCode -eq 200) {
             $resp.Close()
@@ -204,7 +214,7 @@ for ($i = 0; $i -lt 100; $i++) {
     } catch {}
     
     [System.Windows.Forms.Application]::DoEvents()
-    Start-Sleep -Milliseconds 50
+    Start-Sleep -Milliseconds 100
 }
 
 # 7. LAUNCH BROWSER
@@ -213,7 +223,7 @@ if ($connected) {
     Start-Sleep -Milliseconds 100
     Start-Process "http://127.0.0.1:8080"
 } else {
-    $localIndex = Join-Path $LocalAppDir "index.html"
+    $localIndex = Join-Path $targetDir "index.html"
     if (-not (Test-Path $localIndex)) {
         $localIndex = Join-Path $ShareDir "index.html"
     }
