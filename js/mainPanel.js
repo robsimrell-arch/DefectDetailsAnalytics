@@ -487,10 +487,9 @@ class MainPanel {
       <div class="comment-card" style="margin-bottom: 1rem;">
         <div class="comment-card-header">
           <div class="comment-tags">
+            <span class="tag" style="color: var(--accent-blue); font-weight: 700;">Part: ${this.highlightText(rec.parentPartNo || 'N/A')}</span>
+            ${rec.serialNo ? `<span class="tag" style="color: var(--accent-amber); font-weight: 600;">SN: ${this.highlightText(rec.serialNo)}</span>` : ''}
             <span class="tag">Ref Des: ${this.highlightText(rec.refDes || 'N/A')}</span>
-            ${rec.defectCode ? `<span class="tag" style="color: var(--accent-purple);">Defect Code: ${this.highlightText(rec.defectCode)}</span>` : ''}
-            ${rec.failureCode ? `<span class="tag" style="color: var(--accent-rose);">Failure Code: ${this.highlightText(rec.failureCode)}</span>` : ''}
-            ${rec.serialNo ? `<span class="tag" style="color: var(--accent-amber);">SN: ${this.highlightText(rec.serialNo)}</span>` : ''}
           </div>
 
           <!-- Solution Confirmed Selector -->
@@ -557,9 +556,10 @@ class MainPanel {
 
         <div class="comment-meta">
           <span><strong>Customer:</strong> ${this.highlightText(rec.customer || 'N/A')}</span>
-          <span><strong>Part:</strong> ${this.highlightText(rec.parentPartNo || 'N/A')}</span>
           <span><strong>Process:</strong> ${this.highlightText(rec.processRecorded || 'N/A')}</span>
+          ${rec.defectCode ? `<span><strong>Defect Code:</strong> <span style="color: var(--accent-purple); font-weight: 600;">${this.highlightText(rec.defectCode)}</span></span>` : ''}
           <span><strong>Defect:</strong> ${this.highlightText(rec.defectDescription || 'N/A')}</span>
+          ${rec.failureCode ? `<span><strong>Failure Code:</strong> <span style="color: var(--accent-rose); font-weight: 600;">${this.highlightText(rec.failureCode)}</span></span>` : ''}
         </div>
       </div>
     `;
@@ -598,7 +598,7 @@ class MainPanel {
     if (!modal || !bodyEl || !rec) return;
 
     if (titleEl) {
-      titleEl.innerHTML = `<i data-lucide="message-square" style="color: var(--accent-blue);"></i> Record Details & Comments: <span style="color: var(--accent-amber); font-family: 'JetBrains Mono', monospace;">${this.highlightText(rec.serialNo || 'SN N/A')}</span> (${this.highlightText(rec.refDes || 'No Ref')})`;
+      titleEl.innerHTML = `<i data-lucide="message-square" style="color: var(--accent-blue);"></i> Record Details: <span style="color: var(--accent-blue); font-weight: 700;">${this.highlightText(rec.parentPartNo || 'N/A')}</span> | <span style="color: var(--accent-amber); font-family: 'JetBrains Mono', monospace;">SN: ${this.highlightText(rec.serialNo || 'SN N/A')}</span> (${this.highlightText(rec.refDes || 'No Ref')})`;
     }
 
     bodyEl.innerHTML = this.renderCommentCardHtml(rec);
