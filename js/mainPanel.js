@@ -339,11 +339,41 @@ class MainPanel {
     const selectedTotal = records.length;
     let selectedYes = 0;
     let selectedNo = 0;
+    const descCounts = new Map();
+    const refCounts = new Map();
+
     for (let i = 0; i < selectedTotal; i++) {
-      const fix = records[i].confirmedFix;
+      const r = records[i];
+      const fix = r.confirmedFix;
       if (fix === 'Yes') selectedYes++;
       else if (fix === 'No') selectedNo++;
+
+      const desc = (r.defectDescription || 'UNSPECIFIED').trim();
+      if (desc) descCounts.set(desc, (descCounts.get(desc) || 0) + 1);
+
+      const ref = (r.refDes || '').trim();
+      if (ref && ref.toUpperCase() !== 'N/A' && ref !== '-') {
+        refCounts.set(ref, (refCounts.get(ref) || 0) + 1);
+      }
     }
+
+    const top3Desc = Array.from(descCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({
+        name,
+        count,
+        pct: selectedTotal > 0 ? ((count / selectedTotal) * 100).toFixed(0) : 0
+      }));
+
+    const top3Ref = Array.from(refCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({
+        name,
+        count,
+        pct: selectedTotal > 0 ? ((count / selectedTotal) * 100).toFixed(0) : 0
+      }));
 
     const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
@@ -358,6 +388,25 @@ class MainPanel {
     const dispYes = isFiltered ? selectedYes : globalYes;
     const dispNo = isFiltered ? selectedNo : globalNo;
 
+    const renderTop3List = (items, emptyLabel) => {
+      if (!items || items.length === 0) {
+        return `<div style="font-size: 0.72rem; color: var(--text-muted); font-style: italic; margin-top: 6px;">${emptyLabel}</div>`;
+      }
+      return `
+        <div class="top3-list">
+          ${items.map((item, idx) => `
+            <div class="top3-item" onclick="window.mainPanel.handleTop3Click('${this.safeParam(item.name)}')" title="Click to filter by '${this.escapeHtml(item.name)}' (${item.count.toLocaleString()} records • ${item.pct}%)">
+              <div class="top3-left">
+                <span class="top3-rank rank-${idx + 1}">${idx + 1}</span>
+                <span class="top3-name">${this.escapeHtml(item.name)}</span>
+              </div>
+              <span class="top3-metric">${item.count.toLocaleString()} <span style="font-size: 0.62rem; color: var(--text-muted); font-weight: 400;">(${item.pct}%)</span></span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    };
+
     this.statsContainer.innerHTML = `
       <div class="stat-card">
         <div class="stat-icon-wrapper">
@@ -367,6 +416,26 @@ class MainPanel {
           <span class="stat-value">${dispTotal.toLocaleString()}</span>
           <span class="stat-label">Total Records</span>
           ${countSubLabel(globalTotal)}
+        </div>
+      </div>
+
+      <div class="stat-card top3-card">
+        <div class="stat-icon-wrapper purple">
+          <i data-lucide="alert-triangle"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Defect Modes</span>
+          ${renderTop3List(top3Desc, 'No defect data')}
+        </div>
+      </div>
+
+      <div class="stat-card top3-card">
+        <div class="stat-icon-wrapper cyan">
+          <i data-lucide="map-pin"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-label" style="font-weight: 700; color: var(--text-primary);">Top 3 Ref Des</span>
+          ${renderTop3List(top3Ref, 'No Ref Des data')}
         </div>
       </div>
 
@@ -394,6 +463,17 @@ class MainPanel {
     `;
 
     if (window.lucide) window.lucide.createIcons({ el: this.statsContainer });
+  }
+
+  handleTop3Click(encodedTerm) {
+    const term = decodeURIComponent(encodedTerm || '');
+    if (!term) return;
+    if (window.dataStore) {
+      window.dataStore.setSearchQuery(term);
+      const searchInput = document.getElementById('search-input');
+      if (searchInput) searchInput.value = term;
+      this.showToast(`Filtered by: "${term}"`);
+    }
   }
 
   renderComments(selected, records) {
