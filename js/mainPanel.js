@@ -336,14 +336,6 @@ class MainPanel {
       else if (fix === 'No') globalNo++;
     }
     const globalPending = globalTotal - (globalYes + globalNo);
-    const formatPct = (yesCount, totalCount) => {
-      if (!totalCount || totalCount === 0 || !yesCount || yesCount === 0) return '0.0';
-      const pct = (yesCount / totalCount) * 100;
-      if (pct > 0 && pct < 0.1) return pct.toFixed(2);
-      return pct.toFixed(1);
-    };
-
-    const globalRate = formatPct(globalYes, globalTotal);
 
     const selectedTotal = records.length;
     let selectedYes = 0;
@@ -354,7 +346,6 @@ class MainPanel {
       else if (fix === 'No') selectedNo++;
     }
     const selectedPending = selectedTotal - (selectedYes + selectedNo);
-    const selectedRate = formatPct(selectedYes, selectedTotal);
 
     const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
@@ -365,15 +356,7 @@ class MainPanel {
       return '';
     };
 
-    const rateSubLabel = (globalRateVal) => {
-      if (isFiltered) {
-        return `<span style="font-size: 0.7rem; color: var(--text-muted); display: block;">${globalRateVal}% global</span>`;
-      }
-      return '';
-    };
-
     const dispTotal = isFiltered ? selectedTotal : globalTotal;
-    const dispRate = isFiltered ? selectedRate : globalRate;
     const dispYes = isFiltered ? selectedYes : globalYes;
     const dispNo = isFiltered ? selectedNo : globalNo;
     const dispPending = isFiltered ? selectedPending : globalPending;
@@ -387,17 +370,6 @@ class MainPanel {
           <span class="stat-value">${dispTotal.toLocaleString()}</span>
           <span class="stat-label">Total Records</span>
           ${countSubLabel(globalTotal)}
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrapper purple">
-          <i data-lucide="percent"></i>
-        </div>
-        <div class="stat-info">
-          <span class="stat-value" style="color: var(--accent-purple);">${dispRate}%</span>
-          <span class="stat-label">Solution Rate</span>
-          ${rateSubLabel(globalRate)}
         </div>
       </div>
 
