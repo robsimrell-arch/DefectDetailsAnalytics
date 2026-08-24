@@ -285,7 +285,7 @@ body {
   z-index: 40;
   background: var(--bg-primary);
   padding: 0 1.5rem;
-  margin: 0 -1.5rem 1.25rem -1.5rem;
+  margin: 0 -1.5rem 0 -1.5rem;
   height: 56px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--border-color);
@@ -1205,7 +1205,8 @@ body {
 .comments-section {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   padding: 0 1.25rem 1.25rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -1224,12 +1225,10 @@ body {
   background: var(--bg-secondary);
   padding: 0 1.25rem;
   margin: 0 -1.25rem;
-  height: 58px;
+  height: 56px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--border-color);
-  border-top-left-radius: var(--radius-lg);
-  border-top-right-radius: var(--radius-lg);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
 .section-title {
@@ -1429,7 +1428,8 @@ body {
 .table-section {
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   padding: 0 1.25rem 1.25rem 1.25rem;
   display: flex;
   flex-direction: column;
@@ -1448,11 +1448,9 @@ body {
   background: var(--bg-secondary);
   padding: 0 1.25rem;
   margin: 0 -1.25rem;
-  height: 58px;
+  height: 56px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--border-color);
-  border-top-left-radius: var(--radius-lg);
-  border-top-right-radius: var(--radius-lg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
@@ -1473,7 +1471,7 @@ body {
 
 .data-table th {
   position: sticky;
-  top: calc(-1.5rem + 56px + 58px);
+  top: calc(-1.5rem + 112px);
   z-index: 30;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
