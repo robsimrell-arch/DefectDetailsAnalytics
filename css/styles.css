@@ -1439,6 +1439,10 @@ body {
 .table-container {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
+  max-height: calc(100vh - 290px);
+  overflow: auto;
+  position: relative;
+  background: var(--bg-primary);
 }
 
 .data-table {
@@ -1451,7 +1455,7 @@ body {
 
 .data-table th {
   position: sticky;
-  top: calc(-1.5rem + 56px);
+  top: 0;
   z-index: 20;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
