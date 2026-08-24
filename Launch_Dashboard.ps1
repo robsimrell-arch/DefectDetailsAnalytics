@@ -76,33 +76,12 @@ function Close-Splash() {
     }
 }
 
-# 2. CHECK IF SERVER IS ALREADY ACTIVE AND RESPONDING (INSTANT 0.1s LAUNCH)
-$alreadyRunning = $false
-try {
-    $req = [System.Net.WebRequest]::Create('http://127.0.0.1:8080/api/status')
-    $req.Timeout = 250
-    $resp = $req.GetResponse()
-    if ($resp.StatusCode -eq 200) {
-        $alreadyRunning = $true
-    }
-    $resp.Close()
-} catch {}
-
-if ($alreadyRunning) {
-    Update-SplashStatus "Dashboard ready! Opening browser..."
-    Start-Sleep -Milliseconds 100
-    Start-Process "http://127.0.0.1:8080"
-    Start-Sleep -Milliseconds 150
-    Close-Splash
-    exit 0
-}
-
-# 3. KILL ANY STALE UNRESPONSIVE SERVER PROCESSES BEFORE COPYING OR LAUNCHING
+# 2. KILL ANY PREVIOUS SERVER PROCESSES BEFORE COPYING OR LAUNCHING (ENSURES LATEST EXECUTABLE & SYNC CONFIG)
 try {
     Get-Process -Name "server" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 } catch {}
 
-# 4. PREPARE EXECUTION ENVIRONMENT
+# 3. PREPARE EXECUTION ENVIRONMENT
 Update-SplashStatus "Starting local data engine..."
 
 $isNetworkShare = $false
