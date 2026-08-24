@@ -280,25 +280,20 @@ body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: var(--bg-primary);
-  padding: 0 1.5rem;
-  margin: 0 -1.5rem 0 -1.5rem;
-  height: 56px;
+  height: 48px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .workspace-tab-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.6rem 1.25rem;
+  padding: 0.55rem 1.25rem;
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   border: 1px solid var(--border-color);
@@ -323,12 +318,16 @@ body {
 .workspace-tab-content {
   display: none;
   margin: 0;
-  position: relative;
-  z-index: 1;
+  flex: 1;
+  min-height: 0;
 }
 
 .workspace-tab-content.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Sortable Table Header Styling */
@@ -1039,9 +1038,10 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-y: auto;
-  padding: 0 1.5rem 1.5rem 1.5rem;
-  gap: 0;
+  overflow: hidden;
+  padding: 1.25rem 1.5rem;
+  gap: 0.85rem;
+  box-sizing: border-box;
 }
 
 .breadcrumb-bar {
@@ -1051,10 +1051,11 @@ body {
   font-size: 0.85rem;
   color: var(--text-muted);
   background: var(--bg-secondary);
-  padding: 0.75rem 1.25rem;
+  padding: 0.65rem 1.25rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  margin: 1.25rem 0 1rem 0;
+  margin: 0;
+  flex-shrink: 0;
 }
 
 .breadcrumb-item {
@@ -1203,32 +1204,26 @@ body {
 
 /* Defect Comments Feed */
 .comments-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  padding: 0 1.25rem 1.25rem 1.25rem;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  min-height: calc(100vh - 280px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
 
 .comments-section .section-header {
+  height: 52px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  position: sticky;
-  top: 56px;
-  z-index: 35;
-  background: var(--bg-secondary);
   padding: 0 1.25rem;
-  margin: 0 -1.25rem;
-  height: 56px;
-  box-sizing: border-box;
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  background: var(--bg-secondary);
 }
 
 .section-title {
@@ -1241,10 +1236,13 @@ body {
 }
 
 .comments-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  margin-top: 1rem;
 }
 
 .comment-card {
@@ -1427,40 +1425,36 @@ body {
 
 /* Detail Records Data Table */
 .table-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  padding: 0 1.25rem 1.25rem 1.25rem;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
 
 .table-toolbar {
+  height: 54px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  position: sticky;
-  top: 56px;
-  z-index: 35;
-  background: var(--bg-secondary);
   padding: 0 1.25rem;
-  margin: 0 -1.25rem;
-  height: 56px;
-  box-sizing: border-box;
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  background: var(--bg-secondary);
 }
 
 .table-container {
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  overflow: visible;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
   background: var(--bg-primary);
-  margin-top: 0;
+  position: relative;
 }
 
 .data-table {
@@ -1473,14 +1467,14 @@ body {
 
 .data-table th {
   position: sticky;
-  top: 112px;
-  z-index: 30;
+  top: 0;
+  z-index: 20;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   font-weight: 600;
   padding: 0.8rem 0.9rem;
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   white-space: nowrap;
 }
 
@@ -1537,13 +1531,48 @@ body {
 
 /* Table Pagination & Footer Styles */
 .table-footer {
-  padding: 0.75rem 1rem;
+  height: 50px;
+  flex-shrink: 0;
+  padding: 0 1.25rem;
   border-top: 1px solid var(--border-color);
   background: var(--bg-secondary);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 1rem;
+}
+
+/* Timeline Trend Chart Section */
+.chart-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.table-container::-webkit-scrollbar,
+.comments-feed::-webkit-scrollbar,
+.chart-section::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.comments-feed::-webkit-scrollbar-thumb,
+.chart-section::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.comments-feed::-webkit-scrollbar-thumb:hover,
+.chart-section::-webkit-scrollbar-thumb:hover {
+  background: var(--border-highlight);
 }
 
 .table-pagination-container {
