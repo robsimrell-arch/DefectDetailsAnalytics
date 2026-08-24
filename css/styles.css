@@ -1071,23 +1071,33 @@ body {
   color: var(--text-muted);
 }
 
+/* Header Center Section */
+.header-center-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 0 1rem;
+}
+
 /* Header Total Records Badge */
 .header-total-records-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   background: rgba(56, 189, 248, 0.12);
   border: 1px solid rgba(56, 189, 248, 0.35);
   border-radius: 9999px;
-  padding: 0.22rem 0.75rem;
-  font-size: 0.78rem;
+  padding: 0.28rem 0.95rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--accent-blue);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  letter-spacing: 0.01em;
 }
 
 .header-total-records-badge .badge-global {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 500;
   margin-left: 2px;
