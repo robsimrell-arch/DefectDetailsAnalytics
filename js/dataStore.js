@@ -1031,6 +1031,7 @@ class DataStore {
       fixComment: r.fixComment || ''
     };
 
+    rec._timestamp = this.parseDate(rec.faDate);
     rec._searchStr = this.buildSearchStr(rec);
 
     return rec;
@@ -1448,6 +1449,52 @@ class DataStore {
     this.notify();
   }
 
+  matchesSearchTokens(rec, target, tokens) {
+    if (!tokens || tokens.length === 0) return true;
+    if (target === 'all') {
+      const str = rec._searchStr || '';
+      for (let i = 0; i < tokens.length; i++) {
+        if (!str.includes(tokens[i])) return false;
+      }
+      return true;
+    } else if (target === 'refDes') {
+      const str = (rec.refDes || '').toLowerCase();
+      for (let i = 0; i < tokens.length; i++) {
+        if (!str.includes(tokens[i])) return false;
+      }
+      return true;
+    } else if (target === 'serialNo') {
+      const str = (rec.serialNo || '').toLowerCase();
+      for (let i = 0; i < tokens.length; i++) {
+        if (!str.includes(tokens[i])) return false;
+      }
+      return true;
+    } else if (target === 'failureComments') {
+      const str = `${rec.failureComment || ''} ${rec.failureDescription || ''}`.toLowerCase();
+      for (let i = 0; i < tokens.length; i++) {
+        if (!str.includes(tokens[i])) return false;
+      }
+      return true;
+    } else if (target === 'comments') {
+      const str = `${rec.defectComment || ''} ${rec.failureComment || ''} ${rec.repairComment || ''} ${rec.fixComment || ''} ${rec.failureDescription || ''} ${rec.repairDescription || ''}`.toLowerCase();
+      for (let i = 0; i < tokens.length; i++) {
+        if (!str.includes(tokens[i])) return false;
+      }
+      return true;
+    } else if (target === 'parts') {
+      const str = `${rec.parentPartNo || ''} ${rec.customer || ''} ${rec.processRecorded || ''}`.toLowerCase();
+      for (let i = 0; i < tokens.length; i++) {
+        if (!str.includes(tokens[i])) return false;
+      }
+      return true;
+    }
+    const str = rec._searchStr || '';
+    for (let i = 0; i < tokens.length; i++) {
+      if (!str.includes(tokens[i])) return false;
+    }
+    return true;
+  }
+
   buildTree() {
     let filtered = this.rawRecords;
 
@@ -1460,31 +1507,11 @@ class DataStore {
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase().trim();
       const target = this.searchTarget;
+      const tokens = q.split(/\s+/).filter(Boolean);
 
-      filtered = filtered.filter(r => {
-        if (target === 'all') {
-          return (r._searchStr || '').includes(q);
-        } else if (target === 'refDes') {
-          return (r.refDes || '').toLowerCase().includes(q);
-        } else if (target === 'serialNo') {
-          return (r.serialNo || '').toLowerCase().includes(q);
-        } else if (target === 'failureComments') {
-          return (r.failureComment || '').toLowerCase().includes(q) || (r.failureDescription || '').toLowerCase().includes(q);
-        } else if (target === 'comments') {
-          return (r.defectComment || '').toLowerCase().includes(q) ||
-                 (r.failureComment || '').toLowerCase().includes(q) ||
-                 (r.repairComment || '').toLowerCase().includes(q) ||
-                 (r.fixComment || '').toLowerCase().includes(q) ||
-                 (r.failureDescription || '').toLowerCase().includes(q) ||
-                 (r.repairDescription || '').toLowerCase().includes(q);
-        } else if (target === 'parts') {
-          return (r.parentPartNo || '').toLowerCase().includes(q) ||
-                 (r.customer || '').toLowerCase().includes(q) ||
-                 (r.processRecorded || '').toLowerCase().includes(q);
-        } else {
-          return (r._searchStr || '').includes(q);
-        }
-      });
+      if (tokens.length > 0) {
+        filtered = filtered.filter(r => this.matchesSearchTokens(r, target, tokens));
+      }
     }
 
     const custMap = new Map();
@@ -1545,7 +1572,7 @@ class DataStore {
           const descs = Array.from(proc.descMap.values()).map(desc => {
             
             const refs = Array.from(desc.refMap.values()).map(ref => {
-              ref.records.sort((a, b) => this.parseDate(b.faDate) - this.parseDate(a.faDate));
+              ref.records.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
               return ref;
             }).sort(countSort); // Level 5: Ref Des Record Count Descending
             
@@ -1605,31 +1632,11 @@ class DataStore {
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase().trim();
       const target = this.searchTarget;
+      const tokens = q.split(/\s+/).filter(Boolean);
 
-      matched = matched.filter(r => {
-        if (target === 'all') {
-          return (r._searchStr || '').includes(q);
-        } else if (target === 'refDes') {
-          return (r.refDes || '').toLowerCase().includes(q);
-        } else if (target === 'serialNo') {
-          return (r.serialNo || '').toLowerCase().includes(q);
-        } else if (target === 'failureComments') {
-          return (r.failureComment || '').toLowerCase().includes(q) || (r.failureDescription || '').toLowerCase().includes(q);
-        } else if (target === 'comments') {
-          return (r.defectComment || '').toLowerCase().includes(q) ||
-                 (r.failureComment || '').toLowerCase().includes(q) ||
-                 (r.repairComment || '').toLowerCase().includes(q) ||
-                 (r.fixComment || '').toLowerCase().includes(q) ||
-                 (r.failureDescription || '').toLowerCase().includes(q) ||
-                 (r.repairDescription || '').toLowerCase().includes(q);
-        } else if (target === 'parts') {
-          return (r.parentPartNo || '').toLowerCase().includes(q) ||
-                 (r.customer || '').toLowerCase().includes(q) ||
-                 (r.processRecorded || '').toLowerCase().includes(q);
-        } else {
-          return (r._searchStr || '').includes(q);
-        }
-      });
+      if (tokens.length > 0) {
+        matched = matched.filter(r => this.matchesSearchTokens(r, target, tokens));
+      }
     }
 
     return matched;
@@ -1642,7 +1649,7 @@ class DataStore {
       matched = matched.filter(r => r.confirmedFix === this.fixFilter);
     }
 
-    return matched.sort((a, b) => this.parseDate(b.faDate) - this.parseDate(a.faDate));
+    return matched.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
   }
 }
 

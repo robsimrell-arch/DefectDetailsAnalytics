@@ -29,19 +29,32 @@ class TreeView {
     return encodeURIComponent(str || '').replace(/'/g, '%27');
   }
 
+  getHighlightRegex() {
+    const query = (window.dataStore && window.dataStore.searchQuery) ? window.dataStore.searchQuery.trim() : '';
+    if (!query) return null;
+    if (this._cachedQuery === query && this._cachedRegex !== undefined) {
+      return this._cachedRegex;
+    }
+    const words = query.split(/\s+/).filter(w => w.length > 0);
+    if (words.length === 0) {
+      this._cachedQuery = query;
+      this._cachedRegex = null;
+      return null;
+    }
+    words.sort((a, b) => b.length - a.length);
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    this._cachedQuery = query;
+    this._cachedRegex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
+    return this._cachedRegex;
+  }
+
   highlightText(str) {
     if (!str && str !== 0) return '';
     const safeStr = this.escapeHtml(str);
-    const query = (window.dataStore && window.dataStore.searchQuery) ? window.dataStore.searchQuery.trim() : '';
-    if (!query) return safeStr;
+    const regex = this.getHighlightRegex();
+    if (!regex) return safeStr;
 
-    const words = query.split(/\s+/).filter(w => w.length > 0);
-    if (words.length === 0) return safeStr;
-
-    words.sort((a, b) => b.length - a.length);
-    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const regex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
-
+    regex.lastIndex = 0;
     return safeStr.replace(regex, '<mark class="search-highlight">$1</mark>');
   }
 

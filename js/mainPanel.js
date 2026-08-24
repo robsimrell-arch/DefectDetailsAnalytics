@@ -24,13 +24,19 @@ class MainPanel {
 
   bindEventListeners() {
     if (this.tableSearchInput) {
+      let tableSearchDebounce = null;
       this.tableSearchInput.addEventListener('input', (e) => {
-        this.tableFilter = e.target.value.toLowerCase().trim();
-        this.currentPage = 1;
-        this.renderTableOnly();
+        const val = e.target.value.toLowerCase().trim();
+        clearTimeout(tableSearchDebounce);
+        tableSearchDebounce = setTimeout(() => {
+          this.tableFilter = val;
+          this.currentPage = 1;
+          this.renderTableOnly();
+        }, 150);
       });
       this.tableSearchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          clearTimeout(tableSearchDebounce);
           this.tableSearchInput.value = '';
           this.tableFilter = '';
           this.currentPage = 1;
@@ -55,7 +61,9 @@ class MainPanel {
     // Delegated click listener for table rows
     if (this.tableBody) {
       this.tableBody.addEventListener('click', (e) => {
-        if (e.target.closest('select, input, textarea, button, a')) return;
+        const interactive = e.target.closest('select, textarea, input, button, a, label');
+        if (interactive) return;
+
         const row = e.target.closest('tr.record-row-clickable');
         if (row && row.dataset.rowIndex !== undefined) {
           const idx = parseInt(row.dataset.rowIndex, 10);
@@ -81,6 +89,7 @@ class MainPanel {
     const btnComments = document.getElementById('tab-btn-comments');
     const btnRecords = document.getElementById('tab-btn-records');
     const btnChart = document.getElementById('tab-btn-chart');
+
     const contentComments = document.getElementById('tab-content-comments');
     const contentRecords = document.getElementById('tab-content-records');
     const contentChart = document.getElementById('tab-content-chart');
@@ -93,16 +102,21 @@ class MainPanel {
     if (contentRecords) contentRecords.classList.toggle('active', tabName === 'records');
     if (contentChart) contentChart.classList.toggle('active', tabName === 'chart');
 
+    if (tabName === 'chart') {
+      const records = window.dataStore ? window.dataStore.getActiveRecords() : [];
+      this.renderTimelineChart(records);
+    }
+    
     if (window.lucide) window.lucide.createIcons();
     this.render();
   }
 
-  handleSort(columnKey) {
-    if (this.sortColumn === columnKey) {
+  handleSort(column) {
+    if (this.sortColumn === column) {
       this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
-      this.sortColumn = columnKey;
-      this.sortDirection = (columnKey === 'faDate' || columnKey === 'defectQuantity') ? 'desc' : 'asc';
+      this.sortColumn = column;
+      this.sortDirection = (column === 'faDate' || column === 'defectQuantity' || column === 'qty') ? 'desc' : 'asc';
     }
     this.currentPage = 1;
     this.renderTableOnly();
@@ -119,9 +133,9 @@ class MainPanel {
       let valB = b[col];
 
       if (col === 'faDate') {
-        valA = this.parseDate(valA);
-        valB = this.parseDate(valB);
-        return (valA - valB) * dir;
+        const timeA = a._timestamp !== undefined ? a._timestamp : this.parseDate(valA);
+        const timeB = b._timestamp !== undefined ? b._timestamp : this.parseDate(valB);
+        return (timeA - timeB) * dir;
       }
 
       if (col === 'defectQuantity' || col === 'qty') {
@@ -174,33 +188,39 @@ class MainPanel {
       .replace(/'/g, '&#39;');
   }
 
+  getHighlightRegex(extraQuery) {
+    const mainQ = (window.dataStore && window.dataStore.searchQuery) ? window.dataStore.searchQuery.trim() : '';
+    const extraQ = (extraQuery !== undefined ? extraQuery : (this.tableFilter || '')).trim();
+    const cacheKey = `${mainQ}__@@__${extraQ}`;
+
+    if (this._cachedHighlightKey === cacheKey) {
+      return this._cachedHighlightRegex;
+    }
+
+    const tokens = new Set();
+    if (mainQ) mainQ.split(/\s+/).forEach(w => { if (w.length > 0) tokens.add(w); });
+    if (extraQ) extraQ.split(/\s+/).forEach(w => { if (w.length > 0) tokens.add(w); });
+
+    this._cachedHighlightKey = cacheKey;
+
+    if (tokens.size === 0) {
+      this._cachedHighlightRegex = null;
+      return null;
+    }
+
+    const words = Array.from(tokens).sort((a, b) => b.length - a.length);
+    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    this._cachedHighlightRegex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
+    return this._cachedHighlightRegex;
+  }
+
   highlightText(str, extraQuery) {
     if (!str && str !== 0) return '';
     const safeStr = this.escapeHtml(str);
+    const regex = this.getHighlightRegex(extraQuery);
+    if (!regex) return safeStr;
 
-    const queryParts = [];
-    const globalQ = (window.dataStore && window.dataStore.searchQuery) ? window.dataStore.searchQuery.trim() : '';
-    if (globalQ) queryParts.push(globalQ);
-
-    const tableQ = (extraQuery !== undefined ? extraQuery : (this.tableFilter || '')).trim();
-    if (tableQ && !queryParts.includes(tableQ)) queryParts.push(tableQ);
-
-    if (queryParts.length === 0) return safeStr;
-
-    const wordsSet = new Set();
-    queryParts.forEach(q => {
-      q.split(/\s+/).forEach(w => {
-        if (w.length > 0) wordsSet.add(w);
-      });
-    });
-
-    const words = Array.from(wordsSet);
-    if (words.length === 0) return safeStr;
-
-    words.sort((a, b) => b.length - a.length);
-    const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    const regex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
-
+    regex.lastIndex = 0;
     return safeStr.replace(regex, '<mark class="search-highlight">$1</mark>');
   }
 

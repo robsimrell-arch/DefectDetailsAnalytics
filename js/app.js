@@ -51,28 +51,32 @@ function initApp() {
   // Setup Tree Search Input & Target Scope Listeners
   var treeSearchInput = document.getElementById('tree-search-input');
   var treeSearchClear = document.getElementById('tree-search-clear');
+  var treeSearchDebounceTimer = null;
 
   if (treeSearchInput) {
-    var triggerInstantSearch = function(e) {
-      window.dataStore.setSearchQuery(e.target.value);
-    };
-
-    treeSearchInput.addEventListener('input', triggerInstantSearch);
-    treeSearchInput.addEventListener('keyup', triggerInstantSearch);
-    treeSearchInput.addEventListener('change', triggerInstantSearch);
+    treeSearchInput.addEventListener('input', function(e) {
+      var val = e.target.value;
+      clearTimeout(treeSearchDebounceTimer);
+      treeSearchDebounceTimer = setTimeout(function() {
+        window.dataStore.setSearchQuery(val);
+      }, 150);
+    });
 
     treeSearchInput.addEventListener('paste', function(e) {
+      clearTimeout(treeSearchDebounceTimer);
       setTimeout(function() {
-        window.dataStore.setSearchQuery(e.target.value);
+        window.dataStore.setSearchQuery(treeSearchInput.value);
       }, 10);
     });
 
     treeSearchInput.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
+        clearTimeout(treeSearchDebounceTimer);
         treeSearchInput.value = '';
         window.dataStore.setSearchQuery('');
         treeSearchInput.focus();
       } else if (e.key === 'Enter') {
+        clearTimeout(treeSearchDebounceTimer);
         window.dataStore.setSearchQuery(e.target.value);
       }
     });
@@ -81,6 +85,7 @@ function initApp() {
   if (treeSearchClear) {
     treeSearchClear.addEventListener('click', function() {
       if (treeSearchInput) {
+        clearTimeout(treeSearchDebounceTimer);
         treeSearchInput.value = '';
         window.dataStore.setSearchQuery('');
         treeSearchInput.focus();
