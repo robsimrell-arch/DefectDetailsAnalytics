@@ -201,7 +201,7 @@ async function handleFileUpload(e) {
         
         let syncMsg = result.published 
           ? '⚡ Published to central server! All connected machines will update within 2 seconds.'
-          : 'ℹ️ Saved to local browser state. To sync across all network PCs without server.py, click "Publish Dataset to Shared Drive" in Server Sync settings.';
+          : 'ℹ️ Saved to local browser state. To sync across all network PCs, click the "Publish Updates" button in the top navigation bar.';
 
         alert(
           `✅ Dataset Merge & Deduplication Complete!\n\n` +
@@ -257,7 +257,7 @@ async function handleFileUpload(e) {
           
           let syncMsg = result.published 
             ? '⚡ Published to central server! All connected machines will update within 2 seconds.'
-            : 'ℹ️ Saved to local browser state. To sync across all network PCs without server.py, click "Publish Dataset to Shared Drive" in Server Sync settings.';
+            : 'ℹ️ Saved to local browser state. To sync across all network PCs, click the "Publish Updates" button in the top navigation bar.';
 
           alert(
             `✅ Dataset Merge & Deduplication Complete!\n\n` +

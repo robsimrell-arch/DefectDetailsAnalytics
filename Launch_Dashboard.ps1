@@ -117,8 +117,8 @@ if ($isNetworkShare) {
             }
         }
 
-        # Sync web asset folders quickly (R:1 / W:1 prevents any indefinite retry hangs)
-        foreach ($folder in @("assets", "css", "js", "lib")) {
+        # Sync web asset folders and internal binaries quickly (R:1 / W:1 prevents any indefinite retry hangs)
+        foreach ($folder in @("assets", "css", "js", "lib", "_internal")) {
             $src = Join-Path $ShareDir $folder
             $dst = Join-Path $LocalAppDir $folder
             if (Test-Path $src) {
@@ -130,6 +130,11 @@ if ($isNetworkShare) {
         $shareIndex = Join-Path $ShareDir "index.html"
         if (Test-Path $shareIndex) {
             Copy-Item -Path $shareIndex -Destination (Join-Path $LocalAppDir "index.html") -Force -ErrorAction SilentlyContinue
+        }
+
+        $shareServerPy = Join-Path $ShareDir "server.py"
+        if (Test-Path $shareServerPy) {
+            Copy-Item -Path $shareServerPy -Destination (Join-Path $LocalAppDir "server.py") -Force -ErrorAction SilentlyContinue
         }
 
         # Configure shared_data_dir so local server directly uses shared network drive data
@@ -181,15 +186,16 @@ $connected = $false
 
 for ($i = 0; $i -lt 80; $i++) {
     try {
-        $req = [System.Net.WebRequest]::Create('http://127.0.0.1:8080/api/status')
-        $req.Timeout = 200
-        $resp = $req.GetResponse()
-        if ($resp.StatusCode -eq 200) {
-            $resp.Close()
+        $client = New-Object System.Net.Sockets.TcpClient
+        $iar = $client.BeginConnect('127.0.0.1', 8080, $null, $null)
+        $wh = $iar.AsyncWaitHandle.WaitOne(150, $false)
+        if ($wh -and $client.Connected) {
+            $client.EndConnect($iar)
+            $client.Close()
             $connected = $true
             break
         }
-        $resp.Close()
+        $client.Close()
     } catch {}
     
     [System.Windows.Forms.Application]::DoEvents()

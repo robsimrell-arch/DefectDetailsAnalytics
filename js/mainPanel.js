@@ -74,8 +74,8 @@ class MainPanel {
   }
 
   get breadcrumbContainer() { return document.getElementById('breadcrumb-bar'); }
-  get headerTotalContainer() { return document.getElementById('header-total-records'); }
-  get statsContainer() { return document.getElementById('header-total-records'); }
+  get headerTotalContainer() { return document.getElementById('workspace-records-counter'); }
+  get statsContainer() { return document.getElementById('workspace-records-counter'); }
   get commentsContainer() { return document.getElementById('comments-feed'); }
   get commentsTitle() { return document.getElementById('comments-title'); }
   get tableBody() { return document.getElementById('table-body'); }
@@ -343,16 +343,24 @@ class MainPanel {
         <button type="button" 
                 class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
                 onclick="window.mainPanel.toggleFixFilter('Yes')" 
-                title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solutions Confirmed (Yes)'}">
-          <span>✅ Confirmed</span>
-          <span class="pill-count">${yesCount.toLocaleString()}</span>
+                title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solution Confirmed (Yes)'}">
+          <div class="pill-text-stack">
+            <span class="pill-title-main">Solution</span>
+            <span class="pill-title-sub">Confirmed</span>
+            <span class="pill-action-hint">${activeFix === 'Yes' ? 'Click to remove filter' : 'Click to filter'}</span>
+          </div>
+          <span class="pill-count count-emerald">${yesCount.toLocaleString()}</span>
         </button>
         <button type="button" 
                 class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
                 onclick="window.mainPanel.toggleFixFilter('No')" 
-                title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Fixes Failed (No)'}">
-          <span>❌ Failed</span>
-          <span class="pill-count">${noCount.toLocaleString()}</span>
+                title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Solution Failed (No)'}">
+          <div class="pill-text-stack">
+            <span class="pill-title-main">Solution</span>
+            <span class="pill-title-sub">Failed</span>
+            <span class="pill-action-hint">${activeFix === 'No' ? 'Click to remove filter' : 'Click to filter'}</span>
+          </div>
+          <span class="pill-count count-rose">${noCount.toLocaleString()}</span>
         </button>
       </div>
     `;
@@ -364,8 +372,8 @@ class MainPanel {
   }
 
   renderStats(records) {
-    const headerTotalEl = document.getElementById('header-total-records');
-    if (!headerTotalEl) return;
+    const counterEl = document.getElementById('workspace-records-counter');
+    if (!counterEl) return;
 
     const allRaw = window.dataStore.rawRecords || [];
     const globalTotal = allRaw.length;
@@ -373,19 +381,23 @@ class MainPanel {
     const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
     if (isFiltered) {
-      headerTotalEl.innerHTML = `
-        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
-        <span>${selectedTotal.toLocaleString()}</span>
-        <span class="badge-global">/ ${globalTotal.toLocaleString()} records</span>
+      counterEl.innerHTML = `
+        <i data-lucide="filter" style="width: 18px; height: 18px; color: var(--accent-blue);"></i>
+        <span class="count-label">Filtered:</span>
+        <span class="count-highlight">${selectedTotal.toLocaleString()}</span>
+        <span class="count-divider">/</span>
+        <span class="count-total">${globalTotal.toLocaleString()}</span>
+        <span class="count-label">Total Records</span>
       `;
     } else {
-      headerTotalEl.innerHTML = `
-        <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
-        <span>${globalTotal.toLocaleString()} Total Records</span>
+      counterEl.innerHTML = `
+        <i data-lucide="database" style="width: 18px; height: 18px; color: var(--accent-blue);"></i>
+        <span class="count-total">${globalTotal.toLocaleString()}</span>
+        <span class="count-label">Total Records</span>
       `;
     }
 
-    if (window.lucide) window.lucide.createIcons({ el: headerTotalEl });
+    if (window.lucide) window.lucide.createIcons({ el: counterEl });
   }
 
   renderComments(selected, records) {

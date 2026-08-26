@@ -209,6 +209,18 @@ class DataStore {
     return isNaN(d.getTime()) ? 0 : d.getTime();
   }
 
+  normalizeDateKey(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const pad = n => String(n).padStart(2, '0');
+      // Format as YYYY-MM-DD HH:mm (ignoring seconds differences)
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    // Fallback: clean raw string (strip seconds if pattern matches, e.g. "10:12:58" -> "10:12")
+    return String(dateStr).trim().toLowerCase().replace(/:\d{2}(\s*[ap]m)/i, '$1');
+  }
+
   startAutoSync(intervalMs = 5000) {
     if (this.syncIntervalId) {
       clearInterval(this.syncIntervalId);
@@ -733,12 +745,15 @@ class DataStore {
       const ref = (rec.refDes || '').trim();
       const desc = (rec.defectDescription || '').trim();
 
+      const normDt = this.normalizeDateKey(dt);
       const key4 = `${sn}_${dt}_${ref}_${desc}`;
       const rawKey4 = `${rec.serialNo}_${rec.faDate}_${rec.refDes}_${rec.defectDescription}`;
+      const normKey4 = normDt ? `${sn}_${normDt}_${ref}_${desc}` : null;
       const key2 = `${sn}_${dt}`;
       const rawKey2 = `${rec.serialNo}_${rec.faDate}`;
+      const normKey2 = normDt ? `${sn}_${normDt}` : null;
 
-      const specificKeys = [key4, rawKey4, key2, rawKey2];
+      const specificKeys = [key4, rawKey4, normKey4, key2, rawKey2, normKey2].filter(Boolean);
 
       let bestAnn = null;
       let maxTime = -1;
@@ -1202,11 +1217,24 @@ class DataStore {
   async mergeRecords(newRecords, filename) {
     this.currentFilename = filename;
     
-    // Build map of existing records by composite key
+    // Build map of existing records by exact composite key and normalized date key
     const existingMap = new Map();
+    const normalizedMap = new Map();
+
     this.rawRecords.forEach(r => {
-      const key = `${r.serialNo}_${r.faDate}_${r.refDes}_${r.defectDescription}`;
-      existingMap.set(key, r);
+      const sn = (r.serialNo || '').trim();
+      const dt = (r.faDate || '').trim();
+      const normDt = this.normalizeDateKey(dt);
+      const ref = (r.refDes || '').trim();
+      const desc = (r.defectDescription || '').trim();
+
+      const exactKey = `${sn}_${dt}_${ref}_${desc}`;
+      const normKey = `${sn}_${normDt}_${ref}_${desc}`;
+
+      existingMap.set(exactKey, r);
+      if (normDt) {
+        normalizedMap.set(normKey, r);
+      }
     });
 
     let addedCount = 0;
@@ -1214,11 +1242,23 @@ class DataStore {
 
     newRecords.forEach((raw, idx) => {
       const rec = this.normalizeRecord(raw, idx);
-      const key = `${rec.serialNo}_${rec.faDate}_${rec.refDes}_${rec.defectDescription}`;
+      const sn = (rec.serialNo || '').trim();
+      const dt = (rec.faDate || '').trim();
+      const normDt = this.normalizeDateKey(dt);
+      const ref = (rec.refDes || '').trim();
+      const desc = (rec.defectDescription || '').trim();
 
-      if (existingMap.has(key)) {
+      const exactKey = `${sn}_${dt}_${ref}_${desc}`;
+      const normKey = `${sn}_${normDt}_${ref}_${desc}`;
+
+      // Check if record exists via exact key OR normalized timestamp key (seconds-tolerant)
+      let existing = existingMap.get(exactKey);
+      if (!existing && normDt) {
+        existing = normalizedMap.get(normKey);
+      }
+
+      if (existing) {
         // Record exists: update missing or newer non-empty fields
-        const existing = existingMap.get(key);
         let wasUpdated = false;
 
         const updateFields = [
@@ -1234,12 +1274,20 @@ class DataStore {
           }
         });
 
+        // If the new record has a more detailed timestamp (e.g. includes seconds), upgrade it
+        if (dt.length > (existing.faDate || '').length) {
+          existing.faDate = dt;
+        }
+
         if (wasUpdated) updatedCount++;
       } else {
         // Record is brand-new: append to dataset
         rec.id = this.rawRecords.length + 1;
         this.rawRecords.push(rec);
-        existingMap.set(key, rec);
+        existingMap.set(exactKey, rec);
+        if (normDt) {
+          normalizedMap.set(normKey, rec);
+        }
         addedCount++;
       }
     });
@@ -1320,7 +1368,7 @@ class DataStore {
       await this.loadServerAnnotations();
 
       // 2. Publish dataset if new records were imported
-      await this.publishDataset();
+      await this.publishDatasetToServer();
 
       // 3. Push all solution annotations to central server
       let sentCount = 0;
