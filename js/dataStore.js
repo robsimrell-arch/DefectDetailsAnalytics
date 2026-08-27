@@ -1503,46 +1503,39 @@ class DataStore {
     this.notify();
   }
 
+  parseSearchTokens(query) {
+    if (!query || typeof query !== 'string') return [];
+    const tokens = [];
+    const regex = /"([^"]+)"|'([^']+)'|(\S+)/g;
+    let match;
+    while ((match = regex.exec(query)) !== null) {
+      const token = (match[1] || match[2] || match[3] || '').trim().toLowerCase();
+      if (token) {
+        tokens.push(token);
+      }
+    }
+    return tokens;
+  }
+
   matchesSearchTokens(rec, target, tokens) {
     if (!tokens || tokens.length === 0) return true;
+    let str = '';
     if (target === 'all') {
-      const str = rec._searchStr || '';
-      for (let i = 0; i < tokens.length; i++) {
-        if (!str.includes(tokens[i])) return false;
-      }
-      return true;
+      str = rec._searchStr || '';
     } else if (target === 'refDes') {
-      const str = (rec.refDes || '').toLowerCase();
-      for (let i = 0; i < tokens.length; i++) {
-        if (!str.includes(tokens[i])) return false;
-      }
-      return true;
+      str = (rec.refDes || '').toLowerCase();
     } else if (target === 'serialNo') {
-      const str = (rec.serialNo || '').toLowerCase();
-      for (let i = 0; i < tokens.length; i++) {
-        if (!str.includes(tokens[i])) return false;
-      }
-      return true;
+      str = (rec.serialNo || '').toLowerCase();
     } else if (target === 'failureComments') {
-      const str = `${rec.failureComment || ''} ${rec.failureDescription || ''}`.toLowerCase();
-      for (let i = 0; i < tokens.length; i++) {
-        if (!str.includes(tokens[i])) return false;
-      }
-      return true;
+      str = `${rec.failureComment || ''} ${rec.failureDescription || ''}`.toLowerCase();
     } else if (target === 'comments') {
-      const str = `${rec.defectComment || ''} ${rec.failureComment || ''} ${rec.repairComment || ''} ${rec.fixComment || ''} ${rec.failureDescription || ''} ${rec.repairDescription || ''}`.toLowerCase();
-      for (let i = 0; i < tokens.length; i++) {
-        if (!str.includes(tokens[i])) return false;
-      }
-      return true;
+      str = `${rec.defectComment || ''} ${rec.failureComment || ''} ${rec.repairComment || ''} ${rec.fixComment || ''} ${rec.failureDescription || ''} ${rec.repairDescription || ''}`.toLowerCase();
     } else if (target === 'parts') {
-      const str = `${rec.parentPartNo || ''} ${rec.customer || ''} ${rec.processRecorded || ''}`.toLowerCase();
-      for (let i = 0; i < tokens.length; i++) {
-        if (!str.includes(tokens[i])) return false;
-      }
-      return true;
+      str = `${rec.parentPartNo || ''} ${rec.customer || ''} ${rec.processRecorded || ''}`.toLowerCase();
+    } else {
+      str = rec._searchStr || '';
     }
-    const str = rec._searchStr || '';
+
     for (let i = 0; i < tokens.length; i++) {
       if (!str.includes(tokens[i])) return false;
     }
@@ -1559,9 +1552,8 @@ class DataStore {
     }
     
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase().trim();
       const target = this.searchTarget;
-      const tokens = q.split(/\s+/).filter(Boolean);
+      const tokens = this.parseSearchTokens(this.searchQuery);
 
       if (tokens.length > 0) {
         filtered = filtered.filter(r => this.matchesSearchTokens(r, target, tokens));
@@ -1684,9 +1676,8 @@ class DataStore {
     }
 
     if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase().trim();
       const target = this.searchTarget;
-      const tokens = q.split(/\s+/).filter(Boolean);
+      const tokens = this.parseSearchTokens(this.searchQuery);
 
       if (tokens.length > 0) {
         matched = matched.filter(r => this.matchesSearchTokens(r, target, tokens));

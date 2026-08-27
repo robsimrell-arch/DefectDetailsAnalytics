@@ -198,8 +198,22 @@ class MainPanel {
     }
 
     const tokens = new Set();
-    if (mainQ) mainQ.split(/\s+/).forEach(w => { if (w.length > 0) tokens.add(w); });
-    if (extraQ) extraQ.split(/\s+/).forEach(w => { if (w.length > 0) tokens.add(w); });
+    const parseTokens = q => {
+      if (window.dataStore && typeof window.dataStore.parseSearchTokens === 'function') {
+        return window.dataStore.parseSearchTokens(q);
+      }
+      const t = [];
+      const regex = /"([^"]+)"|'([^']+)'|(\S+)/g;
+      let m;
+      while ((m = regex.exec(q)) !== null) {
+        const item = (m[1] || m[2] || m[3] || '').trim();
+        if (item) t.push(item);
+      }
+      return t;
+    };
+
+    if (mainQ) parseTokens(mainQ).forEach(w => { if (w.length > 0) tokens.add(w); });
+    if (extraQ) parseTokens(extraQ).forEach(w => { if (w.length > 0) tokens.add(w); });
 
     this._cachedHighlightKey = cacheKey;
 
@@ -208,6 +222,7 @@ class MainPanel {
       return null;
     }
 
+    // Sort by length descending so longer exact phrases match before sub-words
     const words = Array.from(tokens).sort((a, b) => b.length - a.length);
     const escapedWords = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     this._cachedHighlightRegex = new RegExp(`(${escapedWords.join('|')})`, 'gi');
