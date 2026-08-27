@@ -115,11 +115,16 @@ def get_master_data_dir():
     return os.path.join(APP_DIR, 'data')
 
 def get_all_candidate_data_dirs():
+    dirs = []
     master = get_master_data_dir()
-    dirs = [master]
+    if master and master not in dirs:
+        dirs.append(master)
     in_place = os.path.join(APP_DIR, 'data')
-    if in_place != master and os.path.exists(in_place):
+    if in_place and in_place not in dirs:
         dirs.append(in_place)
+    local_app_dir = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'DefectAnalysisApp', 'data')
+    if local_app_dir and local_app_dir not in dirs:
+        dirs.append(local_app_dir)
     return dirs
 
 def get_data_dir():
@@ -418,11 +423,11 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
         if clean_path == '/api/dataset':
-            if content_length > 60 * 1024 * 1024 or content_length <= 0:
+            if content_length > 200 * 1024 * 1024 or content_length <= 0:
                 self.send_response(413)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                self.wfile.write(b'{"error":"Dataset payload must be <= 60MB"}')
+                self.wfile.write(b'{"error":"Dataset payload must be <= 200MB"}')
                 return
 
             bytes_remaining = content_length

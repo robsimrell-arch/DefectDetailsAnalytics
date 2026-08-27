@@ -58,9 +58,9 @@ class MainPanel {
       });
     }
 
-    // Delegated click listener for table rows
+    // Delegated double-click listener for table rows
     if (this.tableBody) {
-      this.tableBody.addEventListener('click', (e) => {
+      this.tableBody.addEventListener('dblclick', (e) => {
         const interactive = e.target.closest('select, textarea, input, button, a, label');
         if (interactive) return;
 
@@ -817,7 +817,7 @@ class MainPanel {
       const fixComment = r.fixComment || '';
 
       html += `
-        <tr class="record-row-clickable" data-row-index="${idx}" onclick="window.mainPanel.openRecordCommentsModalByIndex(${idx})" title="Click to view all failure, defect, repair comments & solution notes for this record">
+        <tr class="record-row-clickable" data-row-index="${idx}" ondblclick="window.mainPanel.openRecordCommentsModalByIndex(${idx})" title="Double-click to view all failure, defect, repair comments & solution notes for this record">
           <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-blue);">${this.escapeHtml(r.faDate)}</span></td>
           <td><strong>${this.highlightText(r.parentPartNo)}</strong></td>
           <td><span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-amber);">${this.highlightText(r.serialNo || '-')}</span></td>
