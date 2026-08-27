@@ -1350,9 +1350,18 @@ class DataStore {
           window.mainPanel.showToast('✅ Dataset successfully published to network share!');
         }
         return true;
+      } else {
+        const errText = await res.text().catch(() => '');
+        console.error('Server dataset publish failed:', res.status, errText);
+        if (window.mainPanel) {
+          window.mainPanel.showToast(`⚠️ Server upload rejected (${res.status}): ${errText || 'Please restart the desktop app on this machine to apply the latest server update.'}`, 8000);
+        }
       }
     } catch (e) {
       console.warn('Could not publish merged dataset to server:', e);
+      if (window.mainPanel) {
+        window.mainPanel.showToast(`⚠️ Upload failed: ${e.message || e}`, 6000);
+      }
     }
     return false;
   }
