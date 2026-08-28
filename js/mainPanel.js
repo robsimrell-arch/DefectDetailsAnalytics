@@ -834,7 +834,7 @@ class MainPanel {
     if (totalRecords === 0) {
       this.tableBody.innerHTML = `
         <tr>
-          <td colspan="12" class="empty-state" style="padding: 2rem;">
+          <td colspan="13" class="empty-state" style="padding: 2rem;">
             No records found matching criteria.
           </td>
         </tr>
@@ -860,6 +860,7 @@ class MainPanel {
           <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-blue);">${this.escapeHtml(r.faDate)}</span></td>
           <td><strong>${this.highlightText(r.parentPartNo)}</strong></td>
           <td><span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-amber);">${this.highlightText(r.serialNo || '-')}</span></td>
+          <td><span class="tag" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; border-color: rgba(56, 189, 248, 0.25); font-weight: 600;">${this.highlightText(r.processRecorded || '-')}</span></td>
           <td>${this.highlightText(r.defectDescription)}</td>
           <td><span class="tag">${this.highlightText(r.refDes)}</span></td>
           <td style="text-align: center; font-weight: 600;">${r.defectQuantity}</td>
