@@ -362,6 +362,24 @@ body {
   margin: 0 1px;
 }
 
+.workspace-records-counter .count-sn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 0.35rem;
+}
+
+.workspace-records-counter .count-sn-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: var(--accent-amber);
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+}
+
 .workspace-tab-content {
   display: none;
   margin: 0;

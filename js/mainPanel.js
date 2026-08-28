@@ -386,6 +386,20 @@ class MainPanel {
     if (window.lucide) window.lucide.createIcons({ el: this.breadcrumbContainer });
   }
 
+  countUniqueSerialNumbers(recordList) {
+    if (!recordList || recordList.length === 0) return 0;
+    const snSet = new Set();
+    const invalidValues = new Set(['', '-', 'N/A', 'NA', 'NONE', '[NONE]', 'UNKNOWN', 'NULL', 'UNDEFINED']);
+
+    for (let i = 0; i < recordList.length; i++) {
+      const sn = (recordList[i].serialNo || '').toString().trim().toUpperCase();
+      if (sn && !invalidValues.has(sn)) {
+        snSet.add(sn);
+      }
+    }
+    return snSet.size;
+  }
+
   renderStats(records) {
     const counterEl = document.getElementById('workspace-records-counter');
     if (!counterEl) return;
@@ -395,20 +409,30 @@ class MainPanel {
     const selectedTotal = records ? records.length : 0;
     const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
+    // Efficiently cache global unique serial numbers
+    if (this._cachedGlobalRawLength !== globalTotal) {
+      this._cachedGlobalUniqueSNs = this.countUniqueSerialNumbers(allRaw);
+      this._cachedGlobalRawLength = globalTotal;
+    }
+    const globalSNs = this._cachedGlobalUniqueSNs || 0;
+
     if (isFiltered) {
+      const selectedSNs = this.countUniqueSerialNumbers(records);
       counterEl.innerHTML = `
         <i data-lucide="filter" style="width: 18px; height: 18px; color: var(--accent-blue);"></i>
         <span class="count-label">Filtered:</span>
         <span class="count-highlight">${selectedTotal.toLocaleString()}</span>
         <span class="count-divider">/</span>
         <span class="count-total">${globalTotal.toLocaleString()}</span>
-        <span class="count-label">Total Records</span>
+        <span class="count-label">Records</span>
+        <span class="count-sn-badge" title="${selectedSNs.toLocaleString()} unique serial numbers in filtered results">(<span class="count-sn-number">${selectedSNs.toLocaleString()}</span> Unique SNs)</span>
       `;
     } else {
       counterEl.innerHTML = `
         <i data-lucide="database" style="width: 18px; height: 18px; color: var(--accent-blue);"></i>
         <span class="count-total">${globalTotal.toLocaleString()}</span>
         <span class="count-label">Total Records</span>
+        <span class="count-sn-badge" title="${globalSNs.toLocaleString()} total unique serial numbers in dataset">(<span class="count-sn-number">${globalSNs.toLocaleString()}</span> Unique SNs)</span>
       `;
     }
 
