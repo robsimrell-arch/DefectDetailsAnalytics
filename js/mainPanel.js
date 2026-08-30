@@ -11,6 +11,13 @@ class MainPanel {
     this.sortDirection = 'desc'; // Active sorting direction: 'asc' | 'desc'
     this.commentDebounceTimer = null;
 
+    // Chart Metric Mode: 'defects' (Defect Quantity) | 'uniqueSN' (Unique Serial Numbers)
+    let savedChartMetric = 'defects';
+    try {
+      savedChartMetric = localStorage.getItem('DEFECT_APP_CHART_METRIC') || 'defects';
+    } catch (e) {}
+    this.chartMetric = savedChartMetric === 'uniqueSN' ? 'uniqueSN' : 'defects';
+
     if (window.dataStore) {
       window.dataStore.subscribe(() => this.render());
     }
@@ -1017,6 +1024,19 @@ class MainPanel {
     this.renderTimelineChart(window.dataStore.getActiveRecords());
   }
 
+  setChartMetric(metric) {
+    this.chartMetric = metric === 'uniqueSN' ? 'uniqueSN' : 'defects';
+    try {
+      localStorage.setItem('DEFECT_APP_CHART_METRIC', this.chartMetric);
+    } catch (e) {}
+    const isSN = this.chartMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('chart-metric-btn-defects');
+    const btnSN = document.getElementById('chart-metric-btn-uniquesn');
+    if (btnDefects) btnDefects.classList.toggle('active', !isSN);
+    if (btnSN) btnSN.classList.toggle('active', isSN);
+    this.renderTimelineChart(window.dataStore.getActiveRecords());
+  }
+
   renderTimelineChart(records) {
     const canvas = document.getElementById('timeline-chart-canvas');
     if (!canvas) return;
@@ -1025,6 +1045,12 @@ class MainPanel {
     const legendContainer = document.getElementById('chart-legend-container');
     const heading = document.getElementById('chart-heading');
     const subheading = document.getElementById('chart-subheading');
+
+    const isSNMode = this.chartMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('chart-metric-btn-defects');
+    const btnSN = document.getElementById('chart-metric-btn-uniquesn');
+    if (btnDefects) btnDefects.classList.toggle('active', !isSNMode);
+    if (btnSN) btnSN.classList.toggle('active', isSNMode);
 
     const selected = window.dataStore.selectedNode;
     if (heading) {
@@ -1045,7 +1071,9 @@ class MainPanel {
       }
 
       const fullTrail = trail.join(' ➔ ');
-      heading.innerHTML = `<i data-lucide="line-chart" style="width: 18px; height: 18px; color: var(--accent-blue);"></i> Timeline Trend: ${this.escapeHtml(fullTrail)}`;
+      const metricLabel = isSNMode ? 'Unique Serial Numbers' : 'Defect Quantity';
+      const iconName = isSNMode ? 'cpu' : 'line-chart';
+      heading.innerHTML = `<i data-lucide="${iconName}" style="width: 18px; height: 18px; color: var(--accent-blue);"></i> ${metricLabel} Timeline Trend: ${this.escapeHtml(fullTrail)}`;
       if (window.lucide) window.lucide.createIcons({ el: heading });
     }
 
@@ -1080,10 +1108,14 @@ class MainPanel {
       let rawSub = r[stackProp];
       if (!rawSub && stackProp === 'refDes') rawSub = r.defectDescription || 'General';
       const subValue = (rawSub || 'Unspecified').trim();
+      const rawSn = (r.serialNo || '').toString().trim().toUpperCase();
+      const isValidSn = window.dataStore ? window.dataStore.isValidSerialNo(rawSn) : (rawSn && rawSn !== '-' && rawSn !== 'N/A' && rawSn !== 'UNKNOWN');
       parsedRecords.push({
         date: d,
         qty: qty,
-        subName: subValue
+        subName: subValue,
+        serialNo: rawSn,
+        isValidSn: isValidSn
       });
     });
 
@@ -1134,12 +1166,28 @@ class MainPanel {
 
     if (subheading) {
       const stackLabel = stackProp === 'refDes' ? 'Ref Des' : (stackProp === 'defectDescription' ? 'Defect Type' : (stackProp === 'processRecorded' ? 'Process' : 'Part No'));
-      subheading.textContent = `Defect quantity volume aggregated ${mode} stacked by ${stackLabel} (${parsedRecords.length.toLocaleString()} records parsed)`;
+      if (isSNMode) {
+        subheading.textContent = `Unique serial numbers aggregated ${mode} stacked by ${stackLabel} (${parsedRecords.length.toLocaleString()} records parsed)`;
+      } else {
+        subheading.textContent = `Defect quantity volume aggregated ${mode} stacked by ${stackLabel} (${parsedRecords.length.toLocaleString()} records parsed)`;
+      }
     }
 
     const buckets = {};
     const subCatVolumeMap = {};
+    const subCatSnMap = {};
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const initBucket = (key, label, ts) => ({
+      key: key,
+      dateLabel: label,
+      timestamp: ts,
+      totalQty: 0,
+      subBreakdown: {},
+      subBreakdownSN: {},
+      snSet: new Set(),
+      subSnSets: {}
+    });
 
     // Pre-populate full continuous date intervals across the entire date range (including blank periods)
     if (mode === 'daily') {
@@ -1151,13 +1199,7 @@ class MainPanel {
         const d = String(curr.getDate()).padStart(2, '0');
         const bucketKey = `${y}-${m}-${d}`;
         const dateLabel = `${m}/${d}/${y}`;
-        buckets[bucketKey] = {
-          key: bucketKey,
-          dateLabel: dateLabel,
-          timestamp: curr.getTime(),
-          totalQty: 0,
-          subBreakdown: {}
-        };
+        buckets[bucketKey] = initBucket(bucketKey, dateLabel, curr.getTime());
         curr.setDate(curr.getDate() + 1);
       }
     } else if (mode === 'weekly') {
@@ -1171,13 +1213,7 @@ class MainPanel {
         const md = String(currMon.getDate()).padStart(2, '0');
         const bucketKey = `W_${my}-${mm}-${md}`;
         const dateLabel = `Wk of ${mm}/${md}/${my}`;
-        buckets[bucketKey] = {
-          key: bucketKey,
-          dateLabel: dateLabel,
-          timestamp: currMon.getTime(),
-          totalQty: 0,
-          subBreakdown: {}
-        };
+        buckets[bucketKey] = initBucket(bucketKey, dateLabel, currMon.getTime());
         currMon.setDate(currMon.getDate() + 7);
         if (currMon > endLimit && Object.keys(buckets).length >= 1) break;
       }
@@ -1190,13 +1226,7 @@ class MainPanel {
         const m = String(curr.getMonth() + 1).padStart(2, '0');
         const bucketKey = `${y}-${m}`;
         const dateLabel = `${monthNames[curr.getMonth()]} ${y}`;
-        buckets[bucketKey] = {
-          key: bucketKey,
-          dateLabel: dateLabel,
-          timestamp: curr.getTime(),
-          totalQty: 0,
-          subBreakdown: {}
-        };
+        buckets[bucketKey] = initBucket(bucketKey, dateLabel, curr.getTime());
         curr.setMonth(curr.getMonth() + 1);
       }
     }
@@ -1223,17 +1253,42 @@ class MainPanel {
       }
 
       if (buckets[bucketKey]) {
+        const b = buckets[bucketKey];
         const subName = r.subName;
-        buckets[bucketKey].totalQty += r.qty;
-        buckets[bucketKey].subBreakdown[subName] = (buckets[bucketKey].subBreakdown[subName] || 0) + r.qty;
+        b.totalQty += r.qty;
+        b.subBreakdown[subName] = (b.subBreakdown[subName] || 0) + r.qty;
         subCatVolumeMap[subName] = (subCatVolumeMap[subName] || 0) + r.qty;
+
+        if (r.isValidSn) {
+          b.snSet.add(r.serialNo);
+          if (!b.subSnSets[subName]) b.subSnSets[subName] = new Set();
+          b.subSnSets[subName].add(r.serialNo);
+
+          if (!subCatSnMap[subName]) subCatSnMap[subName] = new Set();
+          subCatSnMap[subName].add(r.serialNo);
+        }
       }
+    });
+
+    // Finalize per-bucket unique SN counts
+    Object.values(buckets).forEach(b => {
+      b.bucketUniqueSNTotal = b.snSet.size;
+      b.totalStackedSN = 0;
+      Object.keys(b.subSnSets).forEach(sub => {
+        const sz = b.subSnSets[sub].size;
+        b.subBreakdownSN[sub] = sz;
+        b.totalStackedSN += sz;
+      });
     });
 
     const sortedBuckets = Object.values(buckets).sort((a, b) => a.timestamp - b.timestamp);
     if (sortedBuckets.length === 0) return;
 
-    const sortedSubCats = Object.keys(subCatVolumeMap).sort((a, b) => subCatVolumeMap[b] - subCatVolumeMap[a]);
+    const activeVolumeMap = isSNMode
+      ? Object.keys(subCatSnMap).reduce((acc, k) => { acc[k] = subCatSnMap[k].size; return acc; }, {})
+      : subCatVolumeMap;
+
+    const sortedSubCats = Object.keys(activeVolumeMap).sort((a, b) => activeVolumeMap[b] - activeVolumeMap[a]);
     const topSubCats = sortedSubCats.slice(0, 5);
     const otherLabel = stackProp === 'refDes' ? 'Other Ref Des' : 'Other Defect Types';
     if (sortedSubCats.length > 5) topSubCats.push(otherLabel);
@@ -1245,12 +1300,35 @@ class MainPanel {
     });
 
     if (legendContainer) {
-      legendContainer.innerHTML = topSubCats.map(cat => `
-        <div class="chart-legend-item">
-          <span class="chart-legend-color" style="background:${catColorMap[cat]};"></span>
-          <span>${this.escapeHtml(cat)} (${(subCatVolumeMap[cat] || 0).toLocaleString()})</span>
-        </div>
-      `).join('');
+      legendContainer.innerHTML = topSubCats.map(cat => {
+        let countDisplay = 0;
+        if (cat === otherLabel) {
+          if (isSNMode) {
+            const otherSet = new Set();
+            Object.keys(subCatSnMap).forEach(k => {
+              if (!topSubCats.includes(k) && k !== otherLabel) {
+                subCatSnMap[k].forEach(sn => otherSet.add(sn));
+              }
+            });
+            countDisplay = otherSet.size;
+          } else {
+            Object.keys(subCatVolumeMap).forEach(k => {
+              if (!topSubCats.includes(k) && k !== otherLabel) {
+                countDisplay += subCatVolumeMap[k];
+              }
+            });
+          }
+        } else {
+          countDisplay = activeVolumeMap[cat] || 0;
+        }
+        const unit = isSNMode ? (countDisplay === 1 ? 'SN' : 'SNs') : (countDisplay === 1 ? 'defect' : 'defects');
+        return `
+          <div class="chart-legend-item">
+            <span class="chart-legend-color" style="background:${catColorMap[cat]};"></span>
+            <span>${this.escapeHtml(cat)} (${countDisplay.toLocaleString()} ${unit})</span>
+          </div>
+        `;
+      }).join('');
     }
 
     const paddingLeft = 45;
@@ -1260,9 +1338,9 @@ class MainPanel {
     const plotWidth = width - paddingLeft - paddingRight;
     const plotHeight = height - paddingTop - paddingBottom;
 
-    let maxQty = Math.max(...sortedBuckets.map(b => b.totalQty), 1);
+    let maxVal = Math.max(...sortedBuckets.map(b => isSNMode ? (b.totalStackedSN || 0) : b.totalQty), 1);
     const steps = 4;
-    maxQty = Math.ceil(maxQty / steps) * steps;
+    maxVal = Math.ceil(maxVal / steps) * steps;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -1273,7 +1351,7 @@ class MainPanel {
     ctx.textBaseline = 'middle';
 
     for (let i = 0; i <= steps; i++) {
-      const val = Math.round((maxQty / steps) * i);
+      const val = Math.round((maxVal / steps) * i);
       const yPos = paddingTop + plotHeight - (i / steps) * plotHeight;
       ctx.beginPath();
       ctx.moveTo(paddingLeft, yPos);
@@ -1296,17 +1374,27 @@ class MainPanel {
       let currentY = paddingTop + plotHeight;
 
       topSubCats.forEach(cat => {
-        let catQty = 0;
-        if (cat === 'Other Defect Types' || cat === 'Other Ref Des') {
-          Object.keys(bucket.subBreakdown).forEach(k => {
-            if (!topSubCats.includes(k)) catQty += bucket.subBreakdown[k];
-          });
+        let catVal = 0;
+        if (isSNMode) {
+          if (cat === otherLabel) {
+            Object.keys(bucket.subBreakdownSN).forEach(k => {
+              if (!topSubCats.includes(k) && k !== otherLabel) catVal += bucket.subBreakdownSN[k] || 0;
+            });
+          } else {
+            catVal = bucket.subBreakdownSN[cat] || 0;
+          }
         } else {
-          catQty = bucket.subBreakdown[cat] || 0;
+          if (cat === otherLabel) {
+            Object.keys(bucket.subBreakdown).forEach(k => {
+              if (!topSubCats.includes(k) && k !== otherLabel) catVal += bucket.subBreakdown[k] || 0;
+            });
+          } else {
+            catVal = bucket.subBreakdown[cat] || 0;
+          }
         }
 
-        if (catQty > 0) {
-          const segHeight = (catQty / maxQty) * plotHeight;
+        if (catVal > 0) {
+          const segHeight = (catVal / maxVal) * plotHeight;
           const segY = currentY - segHeight;
           ctx.fillStyle = catColorMap[cat] || '#3b82f6';
           ctx.fillRect(xLeft, segY, barWidth, segHeight);
@@ -1314,7 +1402,8 @@ class MainPanel {
         }
       });
 
-      const barTopY = paddingTop + plotHeight - (bucket.totalQty / maxQty) * plotHeight;
+      const totalPlotHeight = isSNMode ? (bucket.totalStackedSN || 0) : bucket.totalQty;
+      const barTopY = paddingTop + plotHeight - (totalPlotHeight / maxVal) * plotHeight;
       this.chartHitboxes.push({
         slotLeft: slotLeft,
         slotRight: slotRight,
@@ -1364,19 +1453,32 @@ class MainPanel {
 
       if (hit) {
         const b = hit.bucket;
-        let subDetails = Object.keys(b.subBreakdown)
-          .sort((k1, k2) => b.subBreakdown[k2] - b.subBreakdown[k1])
+        const isSN = this.chartMetric === 'uniqueSN';
+        const breakdownMap = isSN ? (b.subBreakdownSN || {}) : (b.subBreakdown || {});
+
+        let subDetails = Object.keys(breakdownMap)
+          .filter(k => breakdownMap[k] > 0)
+          .sort((k1, k2) => breakdownMap[k2] - breakdownMap[k1])
           .slice(0, 5)
-          .map(k => `<div style="display:flex; justify-content:space-between; gap:1rem; font-size:0.75rem; margin-top:2px;"><span style="color:#94a3b8;">${this.escapeHtml(k)}:</span> <strong>${b.subBreakdown[k].toLocaleString()}</strong></div>`)
+          .map(k => {
+            const count = breakdownMap[k];
+            const suffix = isSN ? ` SN${count !== 1 ? 's' : ''}` : '';
+            return `<div style="display:flex; justify-content:space-between; gap:1rem; font-size:0.75rem; margin-top:2px;"><span style="color:#94a3b8;">${this.escapeHtml(k)}:</span> <strong>${count.toLocaleString()}${suffix}</strong></div>`;
+          })
           .join('');
 
-        if (b.totalQty === 0) {
-          subDetails = `<div style="font-size:0.72rem; color:var(--text-muted); font-style:italic;">No defect occurrences recorded</div>`;
+        const isZero = isSN ? (b.bucketUniqueSNTotal === 0) : (b.totalQty === 0);
+        if (isZero) {
+          subDetails = `<div style="font-size:0.72rem; color:var(--text-muted); font-style:italic;">No occurrences recorded</div>`;
         }
+
+        const totalHeader = isSN
+          ? `Total Unique SNs: ${b.bucketUniqueSNTotal.toLocaleString()}`
+          : `Total Defects: ${b.totalQty.toLocaleString()}`;
 
         tooltip.innerHTML = `
           <div style="font-weight:600; color:#38bdf8; margin-bottom:4px;">${this.escapeHtml(b.dateLabel)}</div>
-          <div style="font-size:0.85rem; font-weight:700; color:#fff; margin-bottom:6px;">Total Defects: ${b.totalQty.toLocaleString()}</div>
+          <div style="font-size:0.85rem; font-weight:700; color:#fff; margin-bottom:6px;">${totalHeader}</div>
           ${subDetails}
         `;
         tooltip.style.display = 'block';

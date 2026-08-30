@@ -1083,11 +1083,82 @@ body {
   border-radius: 12px;
   margin-left: 0.5rem;
   flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.tree-badge.sn-mode {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
 .tree-node-row.selected .tree-badge {
   background: var(--accent-blue);
   color: #000;
+}
+
+.tree-node-row.selected .tree-badge.sn-mode {
+  background: var(--accent-amber);
+  color: #000;
+  border-color: transparent;
+}
+
+/* Metric Toggle Button Groups (Tree Header & Chart Toolbar) */
+.tree-metric-toggle-box {
+  width: 100%;
+}
+
+.metric-toggle-btn-group {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-tertiary);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#chart-metric-toggle-group {
+  width: auto;
+  background: var(--bg-primary);
+  border-radius: 8px;
+}
+
+.btn-metric-toggle {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-metric-toggle i,
+.btn-metric-toggle svg {
+  width: 13px;
+  height: 13px;
+}
+
+.btn-metric-toggle:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-metric-toggle.active {
+  background: var(--accent-blue);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
 .tree-children {

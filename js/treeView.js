@@ -112,7 +112,26 @@ class TreeView {
     this.render();
   }
 
+  renderBadge(node) {
+    const isSN = window.dataStore && window.dataStore.treeMetric === 'uniqueSN';
+    const count = isSN ? (node.uniqueSNCount || 0) : (node.recordCount || 0);
+    const title = isSN 
+      ? `${count.toLocaleString()} unique serial number${count !== 1 ? 's' : ''}` 
+      : `${count.toLocaleString()} defect record${count !== 1 ? 's' : ''}`;
+    const badgeClass = isSN ? 'tree-badge sn-mode' : 'tree-badge';
+    return `<span class="${badgeClass}" title="${title}">${count.toLocaleString()}</span>`;
+  }
+
+  syncToggleButtons() {
+    const isSN = window.dataStore && window.dataStore.treeMetric === 'uniqueSN';
+    const btnRecords = document.getElementById('tree-metric-btn-records');
+    const btnSN = document.getElementById('tree-metric-btn-uniquesn');
+    if (btnRecords) btnRecords.classList.toggle('active', !isSN);
+    if (btnSN) btnSN.classList.toggle('active', isSN);
+  }
+
   render() {
+    this.syncToggleButtons();
     if (!this.container) return;
 
     const tree = window.dataStore.treeData;
@@ -175,7 +194,7 @@ class TreeView {
               <i class="tree-icon" data-lucide="building-2"></i>
               <span class="tree-label" title="Customer ${this.escapeHtml(cust.name)}">${this.highlightText(cust.name)}</span>
             </div>
-            <span class="tree-badge" title="${(cust.recordCount || 0).toLocaleString()} records">${(cust.recordCount || 0).toLocaleString()}</span>
+            ${this.renderBadge(cust)}
           </div>
       `;
 
@@ -199,7 +218,7 @@ class TreeView {
                   <i class="tree-icon" data-lucide="cpu"></i>
                   <span class="tree-label" title="Part No: ${this.escapeHtml(part.name)}">${this.highlightText(part.name)}</span>
                 </div>
-                <span class="tree-badge" title="${(part.recordCount || 0).toLocaleString()} records">${(part.recordCount || 0).toLocaleString()}</span>
+                ${this.renderBadge(part)}
               </div>
           `;
 
@@ -223,7 +242,7 @@ class TreeView {
                       <i class="tree-icon" data-lucide="activity"></i>
                       <span class="tree-label" title="Process: ${this.escapeHtml(proc.name)}">${this.highlightText(proc.name)}</span>
                     </div>
-                    <span class="tree-badge" title="${(proc.recordCount || 0).toLocaleString()} records">${(proc.recordCount || 0).toLocaleString()}</span>
+                    ${this.renderBadge(proc)}
                   </div>
               `;
 
@@ -247,7 +266,7 @@ class TreeView {
                           <i class="tree-icon" data-lucide="alert-triangle"></i>
                           <span class="tree-label" title="${this.escapeHtml(desc.name)}">${this.highlightText(desc.name)}</span>
                         </div>
-                        <span class="tree-badge" title="${(desc.recordCount || 0).toLocaleString()} records">${(desc.recordCount || 0).toLocaleString()}</span>
+                        ${this.renderBadge(desc)}
                       </div>
                   `;
 
@@ -271,7 +290,7 @@ class TreeView {
                               <i class="tree-icon" data-lucide="map-pin"></i>
                               <span class="tree-label" title="Ref Des: ${this.escapeHtml(ref.name)}">${this.highlightText(ref.name)}</span>
                             </div>
-                            <span class="tree-badge" title="${(ref.recordCount || 0).toLocaleString()} records">${(ref.recordCount || 0).toLocaleString()}</span>
+                            ${this.renderBadge(ref)}
                           </div>
                         </div>
                       `;

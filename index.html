@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   
   <!-- CSS -->
-  <link rel="stylesheet" href="css/styles.css?v=10.5">
+  <link rel="stylesheet" href="css/styles.css?v=11.0">
   
   <!-- Local Offline JS Libraries -->
   <script src="lib/lucide.min.js"></script>
@@ -113,6 +113,18 @@
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <!-- Tree Metric Toggle (Defect Records vs Unique SNs) -->
+          <div class="tree-metric-toggle-box">
+            <div class="metric-toggle-btn-group" id="tree-metric-toggle-group">
+              <button type="button" class="btn btn-sm btn-metric-toggle active" id="tree-metric-btn-records" onclick="window.dataStore.setTreeMetric('records')" title="Show total defect records for each category">
+                <i data-lucide="hash"></i> Defect Records
+              </button>
+              <button type="button" class="btn btn-sm btn-metric-toggle" id="tree-metric-btn-uniquesn" onclick="window.dataStore.setTreeMetric('uniqueSN')" title="Show count of unique board serial numbers (SNs) in each category">
+                <i data-lucide="cpu"></i> Unique SNs
+              </button>
+            </div>
+          </div>
+
           <!-- Date Range Selection Filter -->
           <div class="date-filter-box">
             <div class="date-filter-header">
@@ -268,13 +280,29 @@
               <p id="chart-subheading" style="font-size: 0.78rem; color: var(--text-muted); margin: 3px 0 0 0;">Defect volume occurrences over time for selected category</p>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Time Grouping:</span>
-              <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
-                <button class="btn btn-sm btn-granularity active" id="gran-btn-auto" onclick="window.mainPanel.setChartGranularity('auto')">Auto</button>
-                <button class="btn btn-sm btn-granularity" id="gran-btn-daily" onclick="window.mainPanel.setChartGranularity('daily')">Daily</button>
-                <button class="btn btn-sm btn-granularity" id="gran-btn-weekly" onclick="window.mainPanel.setChartGranularity('weekly')">Weekly</button>
-                <button class="btn btn-sm btn-granularity" id="gran-btn-monthly" onclick="window.mainPanel.setChartGranularity('monthly')">Monthly</button>
+            <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+              <!-- Chart Metric Toggle (Defect Qty vs Unique SNs) -->
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Metric:</span>
+                <div class="metric-toggle-btn-group" id="chart-metric-toggle-group">
+                  <button class="btn btn-sm btn-metric-toggle active" id="chart-metric-btn-defects" onclick="window.mainPanel.setChartMetric('defects')" title="Plot total defect occurrences &amp; quantity over time">
+                    <i data-lucide="hash"></i> Defect Qty
+                  </button>
+                  <button class="btn btn-sm btn-metric-toggle" id="chart-metric-btn-uniquesn" onclick="window.mainPanel.setChartMetric('uniqueSN')" title="Plot count of unique board serial numbers (SNs) affected over time">
+                    <i data-lucide="cpu"></i> Unique SNs
+                  </button>
+                </div>
+              </div>
+
+              <!-- Time Grouping -->
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Time Grouping:</span>
+                <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
+                  <button class="btn btn-sm btn-granularity active" id="gran-btn-auto" onclick="window.mainPanel.setChartGranularity('auto')">Auto</button>
+                  <button class="btn btn-sm btn-granularity" id="gran-btn-daily" onclick="window.mainPanel.setChartGranularity('daily')">Daily</button>
+                  <button class="btn btn-sm btn-granularity" id="gran-btn-weekly" onclick="window.mainPanel.setChartGranularity('weekly')">Weekly</button>
+                  <button class="btn btn-sm btn-granularity" id="gran-btn-monthly" onclick="window.mainPanel.setChartGranularity('monthly')">Monthly</button>
+                </div>
               </div>
             </div>
           </div>
@@ -460,10 +488,10 @@
   </div>
 
   <!-- Scripts -->
-  <script id="fix-annotations-script" src="data/fix_annotations.js?v=10.5"></script>
-  <script src="js/dataStore.js?v=10.5"></script>
-  <script src="js/treeView.js?v=10.5"></script>
-  <script src="js/mainPanel.js?v=10.5"></script>
-  <script src="js/app.js?v=10.5"></script>
+  <script id="fix-annotations-script" src="data/fix_annotations.js?v=11.0"></script>
+  <script src="js/dataStore.js?v=11.0"></script>
+  <script src="js/treeView.js?v=11.0"></script>
+  <script src="js/mainPanel.js?v=11.0"></script>
+  <script src="js/app.js?v=11.0"></script>
 </body>
 </html>

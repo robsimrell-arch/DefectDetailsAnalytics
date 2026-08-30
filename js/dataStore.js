@@ -13,6 +13,14 @@ class DataStore {
     this.startDate = '';
     this.endDate = '';
     this.currentFilename = 'DefectDetails.xls';
+
+    // Tree Metric Mode: 'records' (Defect Counts) | 'uniqueSN' (Unique Serial Numbers)
+    let savedTreeMetric = 'records';
+    try {
+      savedTreeMetric = localStorage.getItem('DEFECT_APP_TREE_METRIC') || 'records';
+    } catch (e) {}
+    this.treeMetric = savedTreeMetric === 'uniqueSN' ? 'uniqueSN' : 'records';
+
     this.annotationsMap = {}; // key: `${serialNo}_${faDate}` -> { confirmedFix, fixComment, updatedAt }
     this.lastSyncTime = null;
     this.syncStatus = 'connecting'; // 'connecting' | 'connected' | 'shared_file' | 'disconnected'
@@ -953,6 +961,22 @@ class DataStore {
     this.notify();
   }
 
+  isValidSerialNo(sn) {
+    if (!sn && sn !== 0) return false;
+    const str = String(sn).trim().toUpperCase();
+    const invalid = new Set(['', '-', 'N/A', 'NA', 'NONE', '[NONE]', 'UNKNOWN', 'NULL', 'UNDEFINED']);
+    return !invalid.has(str);
+  }
+
+  setTreeMetric(metric) {
+    this.treeMetric = metric === 'uniqueSN' ? 'uniqueSN' : 'records';
+    try {
+      localStorage.setItem('DEFECT_APP_TREE_METRIC', this.treeMetric);
+    } catch (e) {}
+    this.buildTree();
+    this.notify();
+  }
+
   saveToLocalStorage(records, filename = 'Imported Dataset') {
     try {
       localStorage.setItem('DEFECT_APP_SAVED_DATA', JSON.stringify(records));
@@ -1569,46 +1593,56 @@ class DataStore {
       const desc = rec.defectDescription;
       const ref = rec.refDes;
       const qty = rec.defectQuantity;
+      const rawSn = (rec.serialNo || '').toString().trim().toUpperCase();
+      const isValidSn = this.isValidSerialNo(rawSn);
 
       if (!custMap.has(cust)) {
-        custMap.set(cust, { name: cust, recordCount: 0, totalQty: 0, partsMap: new Map() });
+        custMap.set(cust, { name: cust, recordCount: 0, totalQty: 0, snSet: new Set(), partsMap: new Map() });
       }
       const custNode = custMap.get(cust);
       custNode.recordCount += 1;
       custNode.totalQty += qty;
+      if (isValidSn) custNode.snSet.add(rawSn);
 
       if (!custNode.partsMap.has(part)) {
-        custNode.partsMap.set(part, { name: part, recordCount: 0, totalQty: 0, procMap: new Map() });
+        custNode.partsMap.set(part, { name: part, recordCount: 0, totalQty: 0, snSet: new Set(), procMap: new Map() });
       }
       const partNode = custNode.partsMap.get(part);
       partNode.recordCount += 1;
       partNode.totalQty += qty;
+      if (isValidSn) partNode.snSet.add(rawSn);
 
       if (!partNode.procMap.has(proc)) {
-        partNode.procMap.set(proc, { name: proc, recordCount: 0, totalQty: 0, descMap: new Map() });
+        partNode.procMap.set(proc, { name: proc, recordCount: 0, totalQty: 0, snSet: new Set(), descMap: new Map() });
       }
       const procNode = partNode.procMap.get(proc);
       procNode.recordCount += 1;
       procNode.totalQty += qty;
+      if (isValidSn) procNode.snSet.add(rawSn);
 
       if (!procNode.descMap.has(desc)) {
-        procNode.descMap.set(desc, { name: desc, recordCount: 0, totalQty: 0, refMap: new Map() });
+        procNode.descMap.set(desc, { name: desc, recordCount: 0, totalQty: 0, snSet: new Set(), refMap: new Map() });
       }
       const descNode = procNode.descMap.get(desc);
       descNode.recordCount += 1;
       descNode.totalQty += qty;
+      if (isValidSn) descNode.snSet.add(rawSn);
 
       if (!descNode.refMap.has(ref)) {
-        descNode.refMap.set(ref, { name: ref, recordCount: 0, totalQty: 0, records: [] });
+        descNode.refMap.set(ref, { name: ref, recordCount: 0, totalQty: 0, snSet: new Set(), records: [] });
       }
       const refNode = descNode.refMap.get(ref);
       refNode.recordCount += 1;
       refNode.totalQty += qty;
+      if (isValidSn) refNode.snSet.add(rawSn);
       refNode.records.push(rec);
     });
 
+    const isSNMode = this.treeMetric === 'uniqueSN';
     const alphaSort = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-    const countSort = (a, b) => (b.recordCount - a.recordCount) || (b.totalQty - a.totalQty) || alphaSort(a, b);
+    const countSort = isSNMode
+      ? (a, b) => (b.uniqueSNCount - a.uniqueSNCount) || (b.recordCount - a.recordCount) || (b.totalQty - a.totalQty) || alphaSort(a, b)
+      : (a, b) => (b.recordCount - a.recordCount) || (b.totalQty - a.totalQty) || (b.uniqueSNCount - a.uniqueSNCount) || alphaSort(a, b);
 
     const tree = Array.from(custMap.values()).map(cust => {
       const parts = Array.from(cust.partsMap.values()).map(part => {
@@ -1619,29 +1653,33 @@ class DataStore {
             
             const refs = Array.from(desc.refMap.values()).map(ref => {
               ref.records.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));
+              ref.uniqueSNCount = ref.snSet ? ref.snSet.size : 0;
               return ref;
-            }).sort(countSort); // Level 5: Ref Des Record Count Descending
+            }).sort(countSort); // Level 5: Ref Des Record/SN Count Descending
             
             return {
               name: desc.name,
               recordCount: desc.recordCount,
               totalQty: desc.totalQty,
+              uniqueSNCount: desc.snSet ? desc.snSet.size : 0,
               children: refs
             };
-          }).sort(countSort); // Level 4: Defect Description Record Count Descending
+          }).sort(countSort); // Level 4: Defect Description Record/SN Count Descending
 
           return {
             name: proc.name,
             recordCount: proc.recordCount,
             totalQty: proc.totalQty,
+            uniqueSNCount: proc.snSet ? proc.snSet.size : 0,
             children: descs
           };
-        }).sort(countSort); // Level 3: Process Recorded Record Count Descending
+        }).sort(countSort); // Level 3: Process Recorded Record/SN Count Descending
 
           return {
             name: part.name,
             recordCount: part.recordCount,
             totalQty: part.totalQty,
+            uniqueSNCount: part.snSet ? part.snSet.size : 0,
             children: procs
           };
       }).sort(alphaSort); // Level 2: Parent Part No Alphanumeric
@@ -1650,9 +1688,10 @@ class DataStore {
         name: cust.name,
         recordCount: cust.recordCount,
         totalQty: cust.totalQty,
+        uniqueSNCount: cust.snSet ? cust.snSet.size : 0,
         children: parts
       };
-    }).sort(countSort); // Level 1: Customer Total Records Descending
+    }).sort(countSort); // Level 1: Customer Total Records/SN Count Descending
 
     this.treeData = tree;
     this.updateDateInputsUI();
