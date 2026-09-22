@@ -1128,14 +1128,25 @@ class MainPanel {
       sanitizeCsvCell(r.repairComment)
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvString = [headers.join(','), ...rows.map(e => e.join(','))].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const filename = `DefectDetails_Export_${new Date().toISOString().slice(0,10)}.csv`;
+
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DefectDetails_Export_${new Date().toISOString().slice(0,10)}.csv`);
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 200);
+
+    if (typeof this.showToast === 'function') {
+      this.showToast(`📊 Exported ${records.length.toLocaleString()} records to CSV`);
+    }
   }
 
   openServerSettingsModal() {
