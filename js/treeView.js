@@ -106,9 +106,6 @@ class TreeView {
     } else {
       this.expandedKeys.clear();
     }
-    if (window.dataStore) {
-      window.dataStore.selectedNode = null;
-    }
     this.render();
   }
 
@@ -135,7 +132,7 @@ class TreeView {
     if (!this.container) return;
 
     const tree = window.dataStore.treeData;
-    const selected = window.dataStore.selectedNode;
+    const selectedKeys = window.dataStore.selectedKeys || new Set();
     const query = window.dataStore.searchQuery;
 
     let html = '';
@@ -180,17 +177,23 @@ class TreeView {
     tree.forEach(cust => {
       const custKey = `c:${cust.name}`;
       const isCustExpanded = this.expandedKeys.has(custKey);
-      const isCustSelected = selected && selected.level === 1 && selected.customer === cust.name;
+      const isCustChecked = selectedKeys.has(custKey);
+      const isCustIndeterminate = window.dataStore.isNodeIndeterminate(custKey);
 
       html += `
         <div class="tree-node level-1">
-          <div class="tree-node-row ${isCustSelected ? 'selected' : ''}" 
-               onclick="window.treeView.selectEncodedNode(event, 1, '${this.safeParam(cust.name)}')">
+          <div class="tree-node-row ${isCustChecked ? 'selected' : ''} ${isCustIndeterminate ? 'indeterminate' : ''}" 
+               data-key="${this.safeParam(custKey)}"
+               onclick="window.treeView.handleRowClick(event, '${this.safeParam(custKey)}')">
             <div class="tree-node-left">
               <span class="tree-toggle ${isCustExpanded ? 'expanded' : ''}" 
                     onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(custKey)}')">
                 <i data-lucide="chevron-right"></i>
               </span>
+              <input type="checkbox" class="tree-node-checkbox" 
+                     data-key="${this.safeParam(custKey)}" 
+                     ${isCustChecked ? 'checked' : ''} 
+                     onclick="window.treeView.handleCheckboxClick(event, '${this.safeParam(custKey)}')" />
               <i class="tree-icon" data-lucide="building-2"></i>
               <span class="tree-label" title="Customer ${this.escapeHtml(cust.name)}">${this.highlightText(cust.name)}</span>
             </div>
@@ -204,17 +207,23 @@ class TreeView {
         cust.children.forEach(part => {
           const partKey = `${custKey}>p:${part.name}`;
           const isPartExpanded = this.expandedKeys.has(partKey);
-          const isPartSelected = selected && selected.level === 2 && selected.customer === cust.name && selected.parentPartNo === part.name;
+          const isPartChecked = selectedKeys.has(partKey);
+          const isPartIndeterminate = window.dataStore.isNodeIndeterminate(partKey);
 
           html += `
             <div class="tree-node level-2">
-              <div class="tree-node-row ${isPartSelected ? 'selected' : ''}" 
-                   onclick="window.treeView.selectEncodedNode(event, 2, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}')">
+              <div class="tree-node-row ${isPartChecked ? 'selected' : ''} ${isPartIndeterminate ? 'indeterminate' : ''}" 
+                   data-key="${this.safeParam(partKey)}"
+                   onclick="window.treeView.handleRowClick(event, '${this.safeParam(partKey)}')">
                 <div class="tree-node-left">
                   <span class="tree-toggle ${isPartExpanded ? 'expanded' : ''}" 
                         onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(partKey)}')">
                     <i data-lucide="chevron-right"></i>
                   </span>
+                  <input type="checkbox" class="tree-node-checkbox" 
+                         data-key="${this.safeParam(partKey)}" 
+                         ${isPartChecked ? 'checked' : ''} 
+                         onclick="window.treeView.handleCheckboxClick(event, '${this.safeParam(partKey)}')" />
                   <i class="tree-icon" data-lucide="cpu"></i>
                   <span class="tree-label" title="Part No: ${this.escapeHtml(part.name)}">${this.highlightText(part.name)}</span>
                 </div>
@@ -228,17 +237,23 @@ class TreeView {
             part.children.forEach(proc => {
               const procKey = `${partKey}>pr:${proc.name}`;
               const isProcExpanded = this.expandedKeys.has(procKey);
-              const isProcSelected = selected && selected.level === 3 && selected.customer === cust.name && selected.parentPartNo === part.name && selected.processRecorded === proc.name;
+              const isProcChecked = selectedKeys.has(procKey);
+              const isProcIndeterminate = window.dataStore.isNodeIndeterminate(procKey);
 
               html += `
                 <div class="tree-node level-3">
-                  <div class="tree-node-row ${isProcSelected ? 'selected' : ''}" 
-                       onclick="window.treeView.selectEncodedNode(event, 3, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}', '${this.safeParam(proc.name)}')">
+                  <div class="tree-node-row ${isProcChecked ? 'selected' : ''} ${isProcIndeterminate ? 'indeterminate' : ''}" 
+                       data-key="${this.safeParam(procKey)}"
+                       onclick="window.treeView.handleRowClick(event, '${this.safeParam(procKey)}')">
                     <div class="tree-node-left">
                       <span class="tree-toggle ${isProcExpanded ? 'expanded' : ''}" 
                             onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(procKey)}')">
                         <i data-lucide="chevron-right"></i>
                       </span>
+                      <input type="checkbox" class="tree-node-checkbox" 
+                             data-key="${this.safeParam(procKey)}" 
+                             ${isProcChecked ? 'checked' : ''} 
+                             onclick="window.treeView.handleCheckboxClick(event, '${this.safeParam(procKey)}')" />
                       <i class="tree-icon" data-lucide="activity"></i>
                       <span class="tree-label" title="Process: ${this.escapeHtml(proc.name)}">${this.highlightText(proc.name)}</span>
                     </div>
@@ -252,17 +267,23 @@ class TreeView {
                 proc.children.forEach(desc => {
                   const descKey = `${procKey}>d:${desc.name}`;
                   const isDescExpanded = this.expandedKeys.has(descKey);
-                  const isDescSelected = selected && selected.level === 4 && selected.customer === cust.name && selected.parentPartNo === part.name && selected.processRecorded === proc.name && selected.defectDescription === desc.name;
+                  const isDescChecked = selectedKeys.has(descKey);
+                  const isDescIndeterminate = window.dataStore.isNodeIndeterminate(descKey);
 
                   html += `
                     <div class="tree-node level-4">
-                      <div class="tree-node-row ${isDescSelected ? 'selected' : ''}" 
-                           onclick="window.treeView.selectEncodedNode(event, 4, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}', '${this.safeParam(proc.name)}', '${this.safeParam(desc.name)}')">
+                      <div class="tree-node-row ${isDescChecked ? 'selected' : ''} ${isDescIndeterminate ? 'indeterminate' : ''}" 
+                           data-key="${this.safeParam(descKey)}"
+                           onclick="window.treeView.handleRowClick(event, '${this.safeParam(descKey)}')">
                         <div class="tree-node-left">
                           <span class="tree-toggle ${isDescExpanded ? 'expanded' : ''}" 
                                 onclick="event.stopPropagation(); window.treeView.toggleEncodedNode('${this.safeParam(descKey)}')">
                             <i data-lucide="chevron-right"></i>
                           </span>
+                          <input type="checkbox" class="tree-node-checkbox" 
+                                 data-key="${this.safeParam(descKey)}" 
+                                 ${isDescChecked ? 'checked' : ''} 
+                                 onclick="window.treeView.handleCheckboxClick(event, '${this.safeParam(descKey)}')" />
                           <i class="tree-icon" data-lucide="alert-triangle"></i>
                           <span class="tree-label" title="${this.escapeHtml(desc.name)}">${this.highlightText(desc.name)}</span>
                         </div>
@@ -274,19 +295,20 @@ class TreeView {
                     html += '<div class="tree-children">';
 
                     desc.children.forEach(ref => {
-                      const isRefSelected = selected && selected.level === 5 && 
-                        selected.customer === cust.name && 
-                        selected.parentPartNo === part.name && 
-                        selected.processRecorded === proc.name &&
-                        selected.defectDescription === desc.name && 
-                        selected.refDes === ref.name;
+                      const refKey = `${descKey}>r:${ref.name}`;
+                      const isRefChecked = selectedKeys.has(refKey);
 
                       html += `
                         <div class="tree-node level-5">
-                          <div class="tree-node-row ${isRefSelected ? 'selected' : ''}" 
-                               onclick="window.treeView.selectEncodedNode(event, 5, '${this.safeParam(cust.name)}', '${this.safeParam(part.name)}', '${this.safeParam(proc.name)}', '${this.safeParam(desc.name)}', '${this.safeParam(ref.name)}')">
+                          <div class="tree-node-row ${isRefChecked ? 'selected' : ''}" 
+                               data-key="${this.safeParam(refKey)}"
+                               onclick="window.treeView.handleRowClick(event, '${this.safeParam(refKey)}')">
                             <div class="tree-node-left">
                               <span class="tree-toggle" style="visibility: hidden;"><i data-lucide="minus"></i></span>
+                              <input type="checkbox" class="tree-node-checkbox" 
+                                     data-key="${this.safeParam(refKey)}" 
+                                     ${isRefChecked ? 'checked' : ''} 
+                                     onclick="window.treeView.handleCheckboxClick(event, '${this.safeParam(refKey)}')" />
                               <i class="tree-icon" data-lucide="map-pin"></i>
                               <span class="tree-label" title="Ref Des: ${this.escapeHtml(ref.name)}">${this.highlightText(ref.name)}</span>
                             </div>
@@ -324,9 +346,72 @@ class TreeView {
 
     this.container.innerHTML = html;
 
+    const checkboxes = this.container.querySelectorAll('.tree-node-checkbox');
+    checkboxes.forEach(cb => {
+      const k = decodeURIComponent(cb.getAttribute('data-key') || '');
+      if (window.dataStore.isNodeIndeterminate(k)) {
+        cb.indeterminate = true;
+      }
+    });
+
     if (window.lucide) {
       window.lucide.createIcons();
     }
+  }
+
+  handleRowClick(event, encKey) {
+    const key = decodeURIComponent(encKey);
+    if (event.ctrlKey || event.metaKey) {
+      const isChecked = window.dataStore.selectedKeys.has(key);
+      window.dataStore.toggleNodeChecked(key, !isChecked);
+      this.lastClickedKey = key;
+    } else if (event.shiftKey) {
+      this.handleRangeSelection(key);
+    } else {
+      this.toggleNode(key);
+    }
+  }
+
+  handleCheckboxClick(event, encKey) {
+    event.stopPropagation();
+    const key = decodeURIComponent(encKey);
+    if (event.shiftKey) {
+      this.handleRangeSelection(key);
+    } else {
+      const isChecked = window.dataStore.selectedKeys.has(key);
+      window.dataStore.toggleNodeChecked(key, !isChecked);
+      this.lastClickedKey = key;
+    }
+  }
+
+  handleRangeSelection(targetKey) {
+    if (!this.lastClickedKey) {
+      const isChecked = window.dataStore.selectedKeys.has(targetKey);
+      window.dataStore.toggleNodeChecked(targetKey, !isChecked);
+      this.lastClickedKey = targetKey;
+      return;
+    }
+
+    const rowElements = Array.from(this.container.querySelectorAll('.tree-node-row'));
+    const visibleKeys = rowElements.map(el => decodeURIComponent(el.getAttribute('data-key') || '')).filter(Boolean);
+
+    const idxA = visibleKeys.indexOf(this.lastClickedKey);
+    const idxB = visibleKeys.indexOf(targetKey);
+
+    if (idxA === -1 || idxB === -1) {
+      const isChecked = window.dataStore.selectedKeys.has(targetKey);
+      window.dataStore.toggleNodeChecked(targetKey, !isChecked);
+      this.lastClickedKey = targetKey;
+      return;
+    }
+
+    const start = Math.min(idxA, idxB);
+    const end = Math.max(idxA, idxB);
+    const rangeKeys = visibleKeys.slice(start, end + 1);
+
+    const shouldCheck = !window.dataStore.selectedKeys.has(targetKey);
+    window.dataStore.selectNodeKeysRange(rangeKeys, shouldCheck);
+    this.lastClickedKey = targetKey;
   }
 
   selectEncodedNode(event, level, encCust = '', encPart = '', encProc = '', encDesc = '', encRef = '') {
@@ -340,7 +425,7 @@ class TreeView {
   }
 
   selectNode(event, level, customer, parentPartNo = '', processRecorded = '', defectDescription = '', refDes = '') {
-    event.stopPropagation();
+    if (event && event.stopPropagation) event.stopPropagation();
     
     let nodeKey = '';
     if (level === 1) {
@@ -351,24 +436,13 @@ class TreeView {
       nodeKey = `c:${customer}>p:${parentPartNo}>pr:${processRecorded}`;
     } else if (level === 4) {
       nodeKey = `c:${customer}>p:${parentPartNo}>pr:${processRecorded}>d:${defectDescription}`;
+    } else if (level === 5) {
+      nodeKey = `c:${customer}>p:${parentPartNo}>pr:${processRecorded}>d:${defectDescription}>r:${refDes}`;
     }
 
     if (nodeKey) {
-      if (this.expandedKeys.has(nodeKey)) {
-        this.expandedKeys.delete(nodeKey);
-      } else {
-        this.expandedKeys.add(nodeKey);
-      }
+      window.dataStore.toggleNodeChecked(nodeKey, true);
     }
-
-    window.dataStore.setSelectedNode({
-      level,
-      customer,
-      parentPartNo,
-      processRecorded,
-      defectDescription,
-      refDes
-    });
   }
 }
 

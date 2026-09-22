@@ -18,6 +18,11 @@ class MainPanel {
     } catch (e) {}
     this.chartMetric = savedChartMetric === 'uniqueSN' ? 'uniqueSN' : 'defects';
 
+    // Chart View Mode: 'timeline' | 'pareto'
+    this.chartViewMode = 'timeline';
+    // Pareto Grouping Dimension: 'defectDescription' | 'refDes' | 'processRecorded' | 'parentPartNo'
+    this.paretoGrouping = 'defectDescription';
+
     if (window.dataStore) {
       window.dataStore.subscribe(() => this.render());
     }
@@ -111,7 +116,7 @@ class MainPanel {
 
     if (tabName === 'chart') {
       const records = window.dataStore ? window.dataStore.getActiveRecords() : [];
-      this.renderTimelineChart(records);
+      this.renderChart(records);
     }
     
     if (window.lucide) window.lucide.createIcons();
@@ -143,6 +148,17 @@ class MainPanel {
         const timeA = a._timestamp !== undefined ? a._timestamp : this.parseDate(valA);
         const timeB = b._timestamp !== undefined ? b._timestamp : this.parseDate(valB);
         return (timeA - timeB) * dir;
+      }
+
+      if (col === 'confirmedAt' || col === 'solutionConfirmedDate') {
+        const timeA = a._confirmedTimestamp !== undefined ? a._confirmedTimestamp : this.parseDate(a.confirmedAt || a.updatedAt);
+        const timeB = b._confirmedTimestamp !== undefined ? b._confirmedTimestamp : this.parseDate(b.confirmedAt || b.updatedAt);
+        if (timeA !== timeB) {
+          return (timeA - timeB) * dir;
+        }
+        const recTimeA = a._timestamp !== undefined ? a._timestamp : this.parseDate(a.faDate);
+        const recTimeB = b._timestamp !== undefined ? b._timestamp : this.parseDate(b.faDate);
+        return (recTimeA - recTimeB) * dir;
       }
 
       if (col === 'defectQuantity' || col === 'qty') {
@@ -268,6 +284,7 @@ class MainPanel {
 
     this.renderBreadcrumbs(selected);
     this.renderStats(records);
+    this.renderSolutionPills();
 
     // If user is actively typing in a memo field, skip comments/table re-render to preserve cursor focus
     const active = document.activeElement;
@@ -281,7 +298,7 @@ class MainPanel {
     this.renderComments(selected, records);
     this.renderTable(records);
     if (this.activeTab === 'chart') {
-      this.renderTimelineChart(records);
+      this.renderChart(records);
     }
   }
 
@@ -308,15 +325,59 @@ class MainPanel {
   toggleFixFilter(status) {
     if (window.dataStore.fixFilter === status) {
       window.dataStore.setFixFilter('all');
+      this.sortColumn = 'faDate';
+      this.sortDirection = 'desc';
     } else {
       window.dataStore.setFixFilter(status);
+      this.sortColumn = 'confirmedAt';
+      this.sortDirection = 'desc';
     }
+  }
+
+  getLevelPrefix(level) {
+    if (level === 1) return 'CUSTOMER:';
+    if (level === 2) return 'PART:';
+    if (level === 3) return 'PROCESS:';
+    if (level === 4) return 'DEFECT:';
+    if (level === 5) return 'REF DES:';
+    return 'ITEM:';
   }
 
   renderBreadcrumbs(selected) {
     if (!this.breadcrumbContainer) return;
 
-    let html = '<div style="display: flex; align-items: center; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 0.5rem;">';
+    const maximal = window.dataStore ? window.dataStore.maximalSelectedNodes : [];
+
+    if (maximal && maximal.length > 0) {
+      let chipsHtml = '';
+      maximal.forEach(node => {
+        const prefix = this.getLevelPrefix(node.level);
+        chipsHtml += `
+          <div class="selection-chip" title="Deselect ${this.escapeHtml(node.name)}">
+            <span class="chip-label-prefix">${prefix}</span>
+            <span class="chip-label-text">${this.escapeHtml(node.name)}</span>
+            <button type="button" class="chip-remove-btn" 
+                    onclick="event.stopPropagation(); window.dataStore.toggleNodeChecked('${this.safeParam(node.key)}', false)" 
+                    title="Deselect ${this.escapeHtml(node.name)}">✕</button>
+          </div>
+        `;
+      });
+
+      this.breadcrumbContainer.innerHTML = `
+        <div class="selection-chips-wrapper">
+          <div class="selection-chips-header">
+            <i data-lucide="check-square" style="width: 15px; height: 15px; color: var(--accent-blue);"></i>
+            <span>Selected (${maximal.length}):</span>
+          </div>
+          <div class="selection-chips-list">
+            ${chipsHtml}
+            <button type="button" class="selection-clear-all-btn" onclick="window.dataStore.clearTreeSelection()">Clear All ✕</button>
+          </div>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons({ el: this.breadcrumbContainer });
+      return;
+    }
 
     let trail = [];
     if (!selected) {
@@ -347,50 +408,127 @@ class MainPanel {
       }
     }
 
-    html += `<div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">${trail.join('')}</div>`;
+    this.breadcrumbContainer.innerHTML = `<div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">${trail.join('')}</div>`;
+    if (window.lucide) window.lucide.createIcons({ el: this.breadcrumbContainer });
+  }
 
+  getFixStatusBadgeClass(status) {
+    const s = (status || 'Pending').toLowerCase().trim();
+    if (s === 'yes') return 'yes';
+    if (s === 'no') return 'no';
+    if (s === 'false fail') return 'false-fail';
+    if (s === 'possible false fail') return 'possible-false-fail';
+    return 'pending';
+  }
+
+  renderSolutionPillsHtml() {
     const baseRecs = window.dataStore ? window.dataStore.getBaseFilteredRecords() : [];
     let yesCount = 0;
     let noCount = 0;
+    let falseFailCount = 0;
+    let possibleFalseFailCount = 0;
+
     for (let i = 0; i < baseRecs.length; i++) {
       const fix = baseRecs[i].confirmedFix;
       if (fix === 'Yes') yesCount++;
       else if (fix === 'No') noCount++;
+      else if (fix === 'False Fail') falseFailCount++;
+      else if (fix === 'Possible False Fail') possibleFalseFailCount++;
     }
 
     const activeFix = window.dataStore ? window.dataStore.fixFilter : 'all';
+    const isSyncing = this.kpiSyncState === 'syncing';
+    const isSynced = this.kpiSyncState === 'synced';
+    const syncClass = isSyncing ? 'syncing' : (isSynced ? 'synced' : '');
+    const syncTitle = isSyncing ? 'Retrieving latest solution annotations...' : 'Solution annotations up to date';
+    const syncIcon = isSyncing ? 'loader-2' : 'check';
+    const syncIconClass = isSyncing ? 'kpi-spin' : 'kpi-check';
 
-    html += `
-      <div class="solution-pills-group">
-        <button type="button" 
-                class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
-                onclick="window.mainPanel.toggleFixFilter('Yes')" 
-                title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solution Confirmed (Yes)'}">
-          <div class="pill-text-stack">
+    return `
+      <button type="button" 
+              class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
+              onclick="window.mainPanel.toggleFixFilter('Yes')" 
+              title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solution Confirmed (Yes)'}">
+        <div class="pill-text-stack">
+          <div style="display: flex; align-items: center; gap: 4px;">
             <span class="pill-title-main">Solution</span>
-            <span class="pill-title-sub">Confirmed</span>
-            <span class="pill-action-hint">${activeFix === 'Yes' ? 'Click to remove filter' : 'Click to filter'}</span>
+            <span class="kpi-sync-indicator ${syncClass}" title="${syncTitle}">
+              <i data-lucide="${syncIcon}" class="${syncIconClass}"></i>
+            </span>
           </div>
-          <span class="pill-count count-emerald">${yesCount.toLocaleString()}</span>
-        </button>
-        <button type="button" 
-                class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
-                onclick="window.mainPanel.toggleFixFilter('No')" 
-                title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Solution Failed (No)'}">
-          <div class="pill-text-stack">
-            <span class="pill-title-main">Solution</span>
-            <span class="pill-title-sub">Failed</span>
-            <span class="pill-action-hint">${activeFix === 'No' ? 'Click to remove filter' : 'Click to filter'}</span>
-          </div>
-          <span class="pill-count count-rose">${noCount.toLocaleString()}</span>
-        </button>
-      </div>
+          <span class="pill-title-sub">Confirmed</span>
+          <span class="pill-action-hint">${activeFix === 'Yes' ? 'Click to remove filter' : 'Click to filter'}</span>
+        </div>
+        <span class="pill-count count-emerald">${yesCount.toLocaleString()}</span>
+      </button>
+
+      <button type="button" 
+              class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
+              onclick="window.mainPanel.toggleFixFilter('No')" 
+              title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Solution Failed (No)'}">
+        <div class="pill-text-stack">
+          <span class="pill-title-main">Solution</span>
+          <span class="pill-title-sub">Failed</span>
+          <span class="pill-action-hint">${activeFix === 'No' ? 'Click to remove filter' : 'Click to filter'}</span>
+        </div>
+        <span class="pill-count count-rose">${noCount.toLocaleString()}</span>
+      </button>
+
+      <button type="button" 
+              class="filter-pill purple ${activeFix === 'False Fail' ? 'active' : ''}" 
+              onclick="window.mainPanel.toggleFixFilter('False Fail')" 
+              title="${activeFix === 'False Fail' ? 'Click to show all records' : 'Filter by Solution False Fail'}">
+        <div class="pill-text-stack">
+          <span class="pill-title-main">Solution</span>
+          <span class="pill-title-sub">False Fail</span>
+          <span class="pill-action-hint">${activeFix === 'False Fail' ? 'Click to remove filter' : 'Click to filter'}</span>
+        </div>
+        <span class="pill-count count-purple">${falseFailCount.toLocaleString()}</span>
+      </button>
+
+      <button type="button" 
+              class="filter-pill amber ${activeFix === 'Possible False Fail' ? 'active' : ''}" 
+              onclick="window.mainPanel.toggleFixFilter('Possible False Fail')" 
+              title="${activeFix === 'Possible False Fail' ? 'Click to show all records' : 'Filter by Solution Possible False Fail'}">
+        <div class="pill-text-stack">
+          <span class="pill-title-main">Solution</span>
+          <span class="pill-title-sub">Possible False Fail</span>
+          <span class="pill-action-hint">${activeFix === 'Possible False Fail' ? 'Click to remove filter' : 'Click to filter'}</span>
+        </div>
+        <span class="pill-count count-amber">${possibleFalseFailCount.toLocaleString()}</span>
+      </button>
     `;
+  }
 
-    html += '</div>';
+  renderSolutionPills() {
+    const html = this.renderSolutionPillsHtml();
+    const tabbarPills = document.getElementById('tabbar-solution-pills');
+    if (tabbarPills) {
+      tabbarPills.innerHTML = html;
+      if (window.lucide) window.lucide.createIcons({ el: tabbarPills });
+    }
+  }
 
-    this.breadcrumbContainer.innerHTML = html;
-    if (window.lucide) window.lucide.createIcons({ el: this.breadcrumbContainer });
+  updateKpiSyncState(state) {
+    this.kpiSyncState = state;
+    const indicators = document.querySelectorAll('.kpi-sync-indicator');
+    indicators.forEach(el => {
+      if (state === 'syncing') {
+        el.className = 'kpi-sync-indicator syncing';
+        el.title = 'Retrieving latest solution annotations...';
+        el.innerHTML = '<i data-lucide="loader-2" class="kpi-spin"></i>';
+      } else if (state === 'synced') {
+        el.className = 'kpi-sync-indicator synced';
+        el.title = 'Solution annotations up to date';
+        el.innerHTML = '<i data-lucide="check" class="kpi-check"></i>';
+        setTimeout(() => {
+          if (el && this.kpiSyncState === 'synced') {
+            el.className = 'kpi-sync-indicator';
+          }
+        }, 2500);
+      }
+      if (window.lucide) window.lucide.createIcons({ el: el });
+    });
   }
 
   countUniqueSerialNumbers(recordList) {
@@ -414,7 +552,8 @@ class MainPanel {
     const allRaw = window.dataStore.rawRecords || [];
     const globalTotal = allRaw.length;
     const selectedTotal = records ? records.length : 0;
-    const isFiltered = !!(window.dataStore.selectedNode || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
+    const hasTreeSelection = (window.dataStore && window.dataStore.maximalSelectedNodes && window.dataStore.maximalSelectedNodes.length > 0) || !!window.dataStore.selectedNode;
+    const isFiltered = !!(hasTreeSelection || window.dataStore.searchQuery || window.dataStore.fixFilter !== 'all' || window.dataStore.datePreset !== 'all');
 
     // Efficiently cache global unique serial numbers
     if (this._cachedGlobalRawLength !== globalTotal) {
@@ -457,15 +596,23 @@ class MainPanel {
         ? ` (Showing 50 most recent of ${totalCount.toLocaleString()} records)` 
         : ` (${totalCount.toLocaleString()} records)`;
 
-      if (selected && selected.level === 5) {
+      const maximal = window.dataStore ? window.dataStore.maximalSelectedNodes : [];
+      if (maximal && maximal.length > 1) {
+        this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure & Defect Comments Feed for Multi-Selection (${maximal.length} items)${countInfo}`;
+      } else if (selected && selected.level === 5) {
         this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure, Defect & Repair Comments for Ref Des: <span style="color: var(--accent-blue);">${this.escapeHtml(selected.refDes)}</span>${countInfo}`;
       } else if (selected && selected.level === 4) {
         this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure, Defect & Repair Comments for <span style="color: var(--accent-blue);">${this.escapeHtml(selected.defectDescription)}</span>${countInfo}`;
       } else if (selected && selected.level === 3) {
         this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure, Defect & Repair Comments for Process: <span style="color: var(--accent-blue);">${this.escapeHtml(selected.processRecorded)}</span>${countInfo}`;
+      } else if (selected && selected.level === 2) {
+        this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure & Defect Comments Feed for Part: <span style="color: var(--accent-blue);">${this.escapeHtml(selected.parentPartNo)}</span>${countInfo}`;
+      } else if (selected && selected.level === 1) {
+        this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure & Defect Comments Feed for Customer: <span style="color: var(--accent-blue);">${this.escapeHtml(selected.customer)}</span>${countInfo}`;
       } else {
         this.commentsTitle.innerHTML = `<i data-lucide="message-square"></i> Failure & Defect Comments Feed${countInfo}`;
       }
+      if (window.lucide) window.lucide.createIcons({ el: this.commentsTitle });
     }
 
     if (commentsList.length === 0) {
@@ -487,6 +634,24 @@ class MainPanel {
     if (window.lucide) window.lucide.createIcons({ el: this.commentsContainer });
   }
 
+  formatConfirmedDate(status, timestamp) {
+    if (!status || status === 'Pending' || !timestamp) {
+      return '<span class="confirmed-date-val" style="color: var(--text-muted); font-size: 0.8rem; font-family: \'JetBrains Mono\', monospace;">Confirmed: N/A</span>';
+    }
+    const d = new Date(timestamp);
+    if (isNaN(d.getTime())) {
+      return `<span class="confirmed-date-val" style="color: var(--text-muted); font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;">Confirmed: ${this.escapeHtml(timestamp)}</span>`;
+    }
+    const dateStr = d.toLocaleString([], {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    return `<span class="confirmed-date-val" style="color: var(--accent-emerald); font-weight: 600; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;" title="Solution Confirmed: ${this.escapeHtml(d.toLocaleString())}">Confirmed: ${this.escapeHtml(dateStr)}</span>`;
+  }
+
   renderCommentCardHtml(rec) {
     const fixStatus = rec.confirmedFix || 'Pending';
     const fixComment = rec.fixComment || '';
@@ -496,6 +661,7 @@ class MainPanel {
         <div class="comment-card-header">
           <div class="comment-tags">
             <span class="tag" style="color: var(--accent-blue); font-weight: 700;">Part: ${this.highlightText(rec.parentPartNo || 'N/A')}</span>
+            <span class="tag" style="color: var(--accent-blue); font-weight: 600;">Date: ${this.escapeHtml(rec.faDate || 'N/A')}</span>
             ${rec.serialNo ? `<span class="tag" style="color: var(--accent-amber); font-weight: 600;">SN: ${this.highlightText(rec.serialNo)}</span>` : ''}
             <span class="tag">Ref Des: ${this.highlightText(rec.refDes || 'N/A')}</span>
           </div>
@@ -503,13 +669,17 @@ class MainPanel {
           <!-- Solution Confirmed Selector -->
           <div style="display: flex; align-items: center; gap: 0.5rem;" onclick="event.stopPropagation()">
             <span style="font-size: 0.78rem; font-weight: 600; color: var(--accent-emerald); text-transform: uppercase; letter-spacing: 0.03em;">Solution Confirmed:</span>
-            <select class="fix-status-badge ${fixStatus.toLowerCase()}" 
-                    onchange="window.mainPanel.handleEncodedFixStatusChange('${this.safeParam(rec.serialNo)}', '${this.safeParam(rec.faDate)}', '${this.safeParam(rec.refDes)}', '${this.safeParam(rec.defectDescription)}', this.value)">
+            <select class="fix-status-badge ${this.getFixStatusBadgeClass(fixStatus)}" 
+                    onchange="window.mainPanel.handleEncodedFixStatusChange('${this.safeParam(rec.serialNo)}', '${this.safeParam(rec.faDate)}', '${this.safeParam(rec.refDes)}', '${this.safeParam(rec.defectDescription)}', this.value, this)">
               <option value="Pending" ${fixStatus === 'Pending' ? 'selected' : ''}>❓ Pending</option>
               <option value="Yes" ${fixStatus === 'Yes' ? 'selected' : ''}>✅ Yes (Confirmed)</option>
               <option value="No" ${fixStatus === 'No' ? 'selected' : ''}>❌ No (Failed)</option>
+              <option value="False Fail" ${fixStatus === 'False Fail' ? 'selected' : ''}>⚡ False Fail</option>
+              <option value="Possible False Fail" ${fixStatus === 'Possible False Fail' ? 'selected' : ''}>⚠️ Possible False Fail</option>
             </select>
-            <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 600; color: var(--accent-blue);">${this.escapeHtml(rec.faDate || 'N/A')}</span>
+            <span class="solution-confirmed-date-container">
+              ${this.formatConfirmedDate(fixStatus, rec.confirmedAt)}
+            </span>
           </div>
         </div>
 
@@ -634,12 +804,12 @@ class MainPanel {
     if (modal) modal.style.display = 'none';
   }
 
-  handleEncodedFixStatusChange(encSerialNo, encFaDate, encRefDes, encDefectDesc, newStatus) {
+  handleEncodedFixStatusChange(encSerialNo, encFaDate, encRefDes, encDefectDesc, newStatus, selectEl = null) {
     const serialNo = decodeURIComponent(encSerialNo);
     const faDate = decodeURIComponent(encFaDate);
     const refDes = decodeURIComponent(encRefDes || '');
     const defectDesc = decodeURIComponent(encDefectDesc || '');
-    this.handleFixStatusChange(serialNo, faDate, refDes, defectDesc, newStatus);
+    this.handleFixStatusChange(serialNo, faDate, refDes, defectDesc, newStatus, selectEl);
   }
 
   handleEncodedFixCommentInput(encSerialNo, encFaDate, encRefDes, encDefectDesc, newComment) {
@@ -668,7 +838,7 @@ class MainPanel {
     this.handleFixCommentChange(serialNo, faDate, refDes, defectDesc, newComment, false);
   }
 
-  handleFixStatusChange(serialNo, faDate, refDes, defectDescription, newStatus) {
+  handleFixStatusChange(serialNo, faDate, refDes, defectDescription, newStatus, selectEl = null) {
     const sn = (serialNo || '').trim();
     const dt = (faDate || '').trim();
     const ref = (refDes || '').trim();
@@ -679,6 +849,18 @@ class MainPanel {
     const currentAnn = window.dataStore.annotationsMap[key4] || window.dataStore.annotationsMap[key2] || {};
     window.dataStore.updateFixAnnotation(serialNo, faDate, newStatus, currentAnn.fixComment || '', refDes, defectDescription);
     this.showToast('⚡ Solution status synced to server backend');
+
+    if (selectEl) {
+      selectEl.className = `fix-status-badge ${this.getFixStatusBadgeClass(newStatus)}`;
+      const parentContainer = selectEl.closest('div');
+      if (parentContainer) {
+        const dateContainer = parentContainer.querySelector('.solution-confirmed-date-container');
+        if (dateContainer) {
+          const nowIso = new Date().toISOString();
+          dateContainer.innerHTML = this.formatConfirmedDate(newStatus, newStatus === 'Pending' ? null : nowIso);
+        }
+      }
+    }
   }
 
   handleFixCommentChange(serialNo, faDate, refDes, defectDescription, newComment, isDebounced = false) {
@@ -874,11 +1056,13 @@ class MainPanel {
           
           <!-- Solution Confirmed Status -->
           <td onclick="event.stopPropagation()">
-            <select class="fix-status-badge ${fixStatus.toLowerCase()}" 
-                    onchange="window.mainPanel.handleEncodedFixStatusChange('${this.safeParam(r.serialNo)}', '${this.safeParam(r.faDate)}', '${this.safeParam(r.refDes)}', '${this.safeParam(r.defectDescription)}', this.value)">
+            <select class="fix-status-badge ${this.getFixStatusBadgeClass(fixStatus)}" 
+                    onchange="window.mainPanel.handleEncodedFixStatusChange('${this.safeParam(r.serialNo)}', '${this.safeParam(r.faDate)}', '${this.safeParam(r.refDes)}', '${this.safeParam(r.defectDescription)}', this.value, this)">
               <option value="Pending" ${fixStatus === 'Pending' ? 'selected' : ''}>Pending</option>
               <option value="Yes" ${fixStatus === 'Yes' ? 'selected' : ''}>Yes</option>
               <option value="No" ${fixStatus === 'No' ? 'selected' : ''}>No</option>
+              <option value="False Fail" ${fixStatus === 'False Fail' ? 'selected' : ''}>False Fail</option>
+              <option value="Possible False Fail" ${fixStatus === 'Possible False Fail' ? 'selected' : ''}>Possible False Fail</option>
             </select>
           </td>
 
@@ -1015,13 +1199,52 @@ class MainPanel {
     }
   }
 
+  renderChart(records) {
+    const recs = records || (window.dataStore ? window.dataStore.getActiveRecords() : []);
+    if (this.chartViewMode === 'pareto') {
+      this.renderParetoChart(recs);
+    } else {
+      this.renderTimelineChart(recs);
+    }
+  }
+
+  setChartViewMode(mode) {
+    this.chartViewMode = mode === 'pareto' ? 'pareto' : 'timeline';
+    const btnTimeline = document.getElementById('chart-view-btn-timeline');
+    const btnPareto = document.getElementById('chart-view-btn-pareto');
+    if (btnTimeline) btnTimeline.classList.toggle('active', this.chartViewMode === 'timeline');
+    if (btnPareto) btnPareto.classList.toggle('active', this.chartViewMode === 'pareto');
+
+    const timeWrap = document.getElementById('chart-time-grouping-wrapper');
+    const paretoWrap = document.getElementById('chart-pareto-grouping-wrapper');
+    if (timeWrap) timeWrap.style.display = this.chartViewMode === 'timeline' ? 'flex' : 'none';
+    if (paretoWrap) paretoWrap.style.display = this.chartViewMode === 'pareto' ? 'flex' : 'none';
+
+    this.renderChart();
+  }
+
+  setParetoGrouping(dimension) {
+    this.paretoGrouping = dimension || 'defectDescription';
+    const map = {
+      'defectDescription': 'pareto-grp-defect',
+      'refDes': 'pareto-grp-refdes',
+      'processRecorded': 'pareto-grp-process',
+      'parentPartNo': 'pareto-grp-part'
+    };
+    Object.keys(map).forEach(dim => {
+      const btn = document.getElementById(map[dim]);
+      if (btn) btn.classList.toggle('active', this.paretoGrouping === dim);
+    });
+    this.renderChart();
+  }
+
   setChartGranularity(mode) {
     this.chartGranularity = mode || 'auto';
     ['auto', 'daily', 'weekly', 'monthly'].forEach(m => {
       const btn = document.getElementById(`gran-btn-${m}`);
       if (btn) btn.classList.toggle('active', this.chartGranularity === m);
     });
-    this.renderTimelineChart(window.dataStore.getActiveRecords());
+    this.renderChart(window.dataStore.getActiveRecords());
   }
 
   setChartMetric(metric) {
@@ -1034,7 +1257,7 @@ class MainPanel {
     const btnSN = document.getElementById('chart-metric-btn-uniquesn');
     if (btnDefects) btnDefects.classList.toggle('active', !isSN);
     if (btnSN) btnSN.classList.toggle('active', isSN);
-    this.renderTimelineChart(window.dataStore.getActiveRecords());
+    this.renderChart(window.dataStore.getActiveRecords());
   }
 
   renderTimelineChart(records) {
@@ -1053,9 +1276,13 @@ class MainPanel {
     if (btnSN) btnSN.classList.toggle('active', isSNMode);
 
     const selected = window.dataStore.selectedNode;
+    const maximal = window.dataStore ? window.dataStore.maximalSelectedNodes : [];
     if (heading) {
       let trail = [];
-      if (!selected) {
+      if (maximal && maximal.length > 1) {
+        const names = maximal.map(n => n.name);
+        trail.push(`Multi-Selection (${maximal.length} items: ${names.slice(0, 3).join(', ')}${maximal.length > 3 ? '...' : ''})`);
+      } else if (!selected) {
         trail.push('All Defect Data (All Customers & Programs)');
       } else {
         const { level, customer, parentPartNo, processRecorded, defectDescription, refDes } = selected;
@@ -1342,11 +1569,16 @@ class MainPanel {
     const steps = 4;
     maxVal = Math.ceil(maxVal / steps) * steps;
 
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const gridStroke = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.08)';
+    const axisTextFill = isLight ? '#334155' : '#94a3b8';
+    const dateLabelFill = isLight ? '#1e293b' : '#cbd5e1';
+
     ctx.clearRect(0, 0, width, height);
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px Inter, sans-serif';
+    ctx.strokeStyle = gridStroke;
+    ctx.fillStyle = axisTextFill;
+    ctx.font = '11px Inter, sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
 
@@ -1420,7 +1652,7 @@ class MainPanel {
         ctx.save();
         ctx.translate(xCenter, paddingTop + plotHeight + 10);
         ctx.rotate(-Math.PI / 2);
-        ctx.fillStyle = '#cbd5e1';
+        ctx.fillStyle = dateLabelFill;
         ctx.font = 'bold 12px Inter, sans-serif';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
@@ -1503,6 +1735,587 @@ class MainPanel {
     canvas.onmouseleave = () => {
       if (tooltip) tooltip.style.display = 'none';
     };
+  }
+
+  renderParetoChart(records) {
+    const canvas = document.getElementById('timeline-chart-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('chart-canvas-wrapper');
+    const legendContainer = document.getElementById('chart-legend-container');
+    const heading = document.getElementById('chart-heading');
+    const subheading = document.getElementById('chart-subheading');
+
+    const isSNMode = this.chartMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('chart-metric-btn-defects');
+    const btnSN = document.getElementById('chart-metric-btn-uniquesn');
+    if (btnDefects) btnDefects.classList.toggle('active', !isSNMode);
+    if (btnSN) btnSN.classList.toggle('active', isSNMode);
+
+    const dim = this.paretoGrouping || 'defectDescription';
+    const dimNames = {
+      'defectDescription': 'Defect Description',
+      'refDes': 'Reference Designator (Ref Des)',
+      'processRecorded': 'Manufacturing Process',
+      'parentPartNo': 'Parent Part Number'
+    };
+    const dimLabel = dimNames[dim] || 'Defect Description';
+
+    const selected = window.dataStore ? window.dataStore.selectedNode : null;
+    const maximal = window.dataStore ? window.dataStore.maximalSelectedNodes : [];
+    if (heading) {
+      let trail = [];
+      if (maximal && maximal.length > 1) {
+        const names = maximal.map(n => n.name);
+        trail.push(`Multi-Selection (${maximal.length} items: ${names.slice(0, 3).join(', ')}${maximal.length > 3 ? '...' : ''})`);
+      } else if (!selected) {
+        trail.push('All Defect Data (All Customers & Programs)');
+      } else {
+        const { level, customer, parentPartNo, processRecorded, defectDescription, refDes } = selected;
+        if (customer) trail.push(`Customer: ${customer}`);
+        if (level >= 2 && parentPartNo) trail.push(`Part: ${parentPartNo}`);
+        if (level >= 3 && processRecorded) trail.push(`Process: ${processRecorded}`);
+        if (level >= 4 && defectDescription) trail.push(`Defect: ${defectDescription}`);
+        if (level >= 5 && refDes) trail.push(`Ref Des: ${refDes}`);
+      }
+      if (window.dataStore && window.dataStore.searchQuery) {
+        trail.push(`[Search: "${window.dataStore.searchQuery}"]`);
+      }
+      const fullTrail = trail.join(' ➔ ');
+      heading.innerHTML = `<i data-lucide="bar-chart-2" style="width: 18px; height: 18px; color: var(--accent-blue);"></i> Pareto 80/20 Analysis (${dimLabel}): ${this.escapeHtml(fullTrail)}`;
+      if (window.lucide) window.lucide.createIcons({ el: heading });
+    }
+
+    if (!container || !records || records.length === 0) {
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (legendContainer) legendContainer.innerHTML = '<span style="font-size:0.8rem; color:var(--text-muted);">No records available to perform Pareto analysis.</span>';
+      return;
+    }
+
+    // Canvas scaling
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Aggregate records by dimension
+    const catCounts = {};
+    const catSnSets = {};
+
+    records.forEach(r => {
+      let val = r[dim];
+      if (!val || !val.toString().trim()) {
+        val = (dim === 'refDes' ? '[Unassigned Ref Des]' : 'Unspecified');
+      }
+      val = val.toString().trim();
+      const qty = parseInt(r.defectQuantity, 10) || 1;
+      const rawSn = (r.serialNo || '').toString().trim().toUpperCase();
+      const isValidSn = window.dataStore ? window.dataStore.isValidSerialNo(rawSn) : (rawSn && rawSn !== '-' && rawSn !== 'N/A' && rawSn !== 'UNKNOWN');
+
+      if (!catCounts[val]) {
+        catCounts[val] = 0;
+        catSnSets[val] = new Set();
+      }
+      catCounts[val] += qty;
+      if (isValidSn) {
+        catSnSets[val].add(rawSn);
+      }
+    });
+
+    const categories = Object.keys(catCounts).map(name => {
+      const count = isSNMode ? catSnSets[name].size : catCounts[name];
+      return {
+        name: name,
+        count: count,
+        snCount: catSnSets[name].size,
+        qty: catCounts[name]
+      };
+    }).filter(c => c.count > 0);
+
+    if (categories.length === 0) {
+      ctx.clearRect(0, 0, width, height);
+      if (legendContainer) legendContainer.innerHTML = '<span style="font-size:0.8rem; color:var(--text-muted);">No valid metric data to calculate Pareto chart.</span>';
+      return;
+    }
+
+    // Sort descending by count
+    categories.sort((a, b) => b.count - a.count);
+
+    const totalOverallMetric = categories.reduce((sum, c) => sum + c.count, 0);
+
+    // Slice top categories to keep chart readable (top 15)
+    const MAX_PARETO_BARS = 15;
+    let displayCategories = categories.slice(0, MAX_PARETO_BARS);
+    if (categories.length > MAX_PARETO_BARS) {
+      const otherItems = categories.slice(MAX_PARETO_BARS);
+      const otherCount = otherItems.reduce((sum, c) => sum + c.count, 0);
+      displayCategories.push({
+        name: `Other (${otherItems.length} categories)`,
+        count: otherCount,
+        snCount: otherCount,
+        qty: otherCount,
+        isOther: true
+      });
+    }
+
+    // Compute cumulative percentages
+    let runningSum = 0;
+    let vitalFewCount = 0;
+    displayCategories.forEach((cat, idx) => {
+      runningSum += cat.count;
+      cat.cumPct = totalOverallMetric > 0 ? (runningSum / totalOverallMetric) * 100 : 0;
+      cat.pctOfTotal = totalOverallMetric > 0 ? (cat.count / totalOverallMetric) * 100 : 0;
+      if (cat.cumPct <= 80 || (vitalFewCount === 0 && cat.cumPct > 80)) {
+        vitalFewCount++;
+      } else if (vitalFewCount === idx && cat.cumPct <= 85) {
+        vitalFewCount++;
+      }
+    });
+
+    if (subheading) {
+      const metricLabel = isSNMode ? 'unique serial numbers' : 'defect quantity';
+      subheading.textContent = `80/20 Pareto distribution of ${totalOverallMetric.toLocaleString()} ${metricLabel} grouped by ${dimLabel} (${categories.length} total categories)`;
+    }
+
+    // Measure label widths to ensure BOTH paddingBottom and paddingLeft dynamically prevent any clipping
+    ctx.font = '13px Inter, sans-serif';
+    let maxLabelWidth = 0;
+    const numCats = displayCategories.length;
+
+    displayCategories.forEach(cat => {
+      let l = cat.name;
+      if (l.length > 40) l = l.slice(0, 38) + '...';
+      const w = ctx.measureText(l).width;
+      if (w > maxLabelWidth) maxLabelWidth = w;
+    });
+
+    const firstCat = displayCategories[0];
+    let firstLabel = firstCat ? firstCat.name : '';
+    if (firstLabel.length > 40) firstLabel = firstLabel.slice(0, 38) + '...';
+    const firstLabelWidth = ctx.measureText(firstLabel).width;
+
+    const rotationAngle = -Math.PI / 2.8; // ~-64.3° provides steep vertical orientation for long defect names
+    const cosA = Math.cos(Math.abs(rotationAngle));
+    const sinA = Math.sin(Math.abs(rotationAngle));
+
+    // Dynamic paddingLeft ensures leftmost text of first bar never clips off the left screen edge (x >= 15px)
+    const estimatedSlotWidth = (width - 120) / Math.max(1, numCats);
+    const neededLeft = Math.ceil(firstLabelWidth * cosA - 0.5 * estimatedSlotWidth + 24);
+    const paddingLeft = Math.max(72, Math.min(145, neededLeft));
+
+    const paddingRight = 60;
+    const paddingTop = 32;
+    const labelDrop = Math.ceil(maxLabelWidth * sinA) + 38;
+    const paddingBottom = Math.max(155, Math.min(250, labelDrop));
+
+    const plotWidth = width - paddingLeft - paddingRight;
+    const plotHeight = height - paddingTop - paddingBottom;
+
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const gridStroke = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.08)';
+    const axisTextFill = isLight ? '#334155' : '#94a3b8';
+    const barCountFill = isLight ? '#0f172a' : '#cbd5e1';
+    const cutoffColor = isLight ? '#be123c' : '#f43f5e';
+    const curveStroke = isLight ? '#b45309' : '#f59e0b';
+    const pointTextFill = isLight ? '#78350f' : '#fbbf24';
+    const dotBorder = isLight ? '#ffffff' : '#0f172a';
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Left Y-axis (Frequency)
+    let maxVal = Math.max(...displayCategories.map(c => c.count), 1);
+    const steps = 4;
+    maxVal = Math.ceil(maxVal / steps) * steps;
+
+    // Grid lines & Axis labels
+    ctx.strokeStyle = gridStroke;
+    ctx.fillStyle = axisTextFill;
+    ctx.font = '12px Inter, sans-serif';
+
+    // Left axis tick values (counts) & Right axis tick values (percentages 0..100%)
+    for (let i = 0; i <= steps; i++) {
+      const yPos = paddingTop + plotHeight - (i / steps) * plotHeight;
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, yPos);
+      ctx.lineTo(width - paddingRight, yPos);
+      ctx.stroke();
+
+      // Left axis label (Frequency)
+      const val = Math.round((maxVal / steps) * i);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(val.toLocaleString(), paddingLeft - 10, yPos);
+
+      // Right axis label (Cumulative %)
+      const pctVal = Math.round((100 / steps) * i);
+      ctx.textAlign = 'left';
+      ctx.fillText(`${pctVal}%`, width - paddingRight + 10, yPos);
+    }
+
+    // 80% Threshold Line (Red/Pink dashed line)
+    const y80 = paddingTop + plotHeight - (80 / 100) * plotHeight;
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = cutoffColor;
+    ctx.lineWidth = 1.8;
+    ctx.moveTo(paddingLeft, y80);
+    ctx.lineTo(width - paddingRight, y80);
+    ctx.stroke();
+
+    // 80% Cutoff Label
+    ctx.fillStyle = cutoffColor;
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('80% Pareto Cutoff', width - paddingRight - 10, y80 - 4);
+    ctx.restore();
+
+    // Render Bars
+    const slotWidth = plotWidth / (numCats || 1);
+    const barWidth = Math.max(Math.min(slotWidth * 0.62, 48), 6);
+    this.chartHitboxes = [];
+    const curvePoints = [];
+
+    displayCategories.forEach((cat, idx) => {
+      const slotLeft = paddingLeft + idx * slotWidth;
+      const slotRight = slotLeft + slotWidth;
+      const xCenter = paddingLeft + (idx + 0.5) * slotWidth;
+      const xLeft = xCenter - barWidth / 2;
+      const barHeight = (cat.count / maxVal) * plotHeight;
+      const barY = paddingTop + plotHeight - barHeight;
+
+      // Modern rounded gradient bar
+      const grad = ctx.createLinearGradient(0, barY, 0, paddingTop + plotHeight);
+      if (idx < vitalFewCount && !cat.isOther) {
+        grad.addColorStop(0, isLight ? '#0284c7' : '#38bdf8');
+        grad.addColorStop(1, isLight ? 'rgba(3, 105, 161, 0.85)' : 'rgba(2, 132, 199, 0.65)');
+      } else {
+        grad.addColorStop(0, isLight ? '#64748b' : '#64748b');
+        grad.addColorStop(1, isLight ? 'rgba(71, 85, 105, 0.85)' : 'rgba(51, 65, 85, 0.65)');
+      }
+      ctx.fillStyle = grad;
+
+      // Rounded top rectangle
+      const radius = Math.min(4, barWidth / 2);
+      ctx.beginPath();
+      ctx.moveTo(xLeft, paddingTop + plotHeight);
+      ctx.lineTo(xLeft, barY + radius);
+      ctx.quadraticCurveTo(xLeft, barY, xLeft + radius, barY);
+      ctx.lineTo(xLeft + barWidth - radius, barY);
+      ctx.quadraticCurveTo(xLeft + barWidth, barY, xLeft + barWidth, barY + radius);
+      ctx.lineTo(xLeft + barWidth, paddingTop + plotHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      // Border outline
+      ctx.strokeStyle = idx < vitalFewCount && !cat.isOther 
+        ? (isLight ? 'rgba(2, 132, 199, 0.9)' : 'rgba(56, 189, 248, 0.8)') 
+        : (isLight ? 'rgba(100, 116, 139, 0.6)' : 'rgba(148, 163, 184, 0.4)');
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Frequency number above bar
+      ctx.fillStyle = barCountFill;
+      ctx.font = 'bold 12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(cat.count.toLocaleString(), xCenter, barY - 4);
+
+      // Cumulative point coordinate
+      const pointY = paddingTop + plotHeight - (cat.cumPct / 100) * plotHeight;
+      curvePoints.push({ x: xCenter, y: pointY, cat: cat });
+
+      // Hitbox for hover
+      this.chartHitboxes.push({
+        slotLeft: slotLeft,
+        slotRight: slotRight,
+        xLeft: xLeft,
+        xRight: xLeft + barWidth,
+        xCenter: xCenter,
+        yTop: Math.min(barY, pointY),
+        yBottom: paddingTop + plotHeight,
+        paretoCat: cat,
+        pointY: pointY
+      });
+
+      // Bottom Category Label (Rotated)
+      ctx.save();
+      ctx.translate(xCenter, paddingTop + plotHeight + 14);
+      ctx.rotate(rotationAngle);
+      ctx.fillStyle = idx < vitalFewCount && !cat.isOther 
+        ? (isLight ? '#0369a1' : '#38bdf8') 
+        : (isLight ? '#1e293b' : '#cbd5e1');
+      ctx.font = idx < vitalFewCount && !cat.isOther ? 'bold 13px Inter, sans-serif' : '13px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      let label = cat.name;
+      if (label.length > 40) label = label.slice(0, 38) + '...';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    });
+
+    // Draw Cumulative % Curve
+    if (curvePoints.length > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = curveStroke;
+      ctx.lineWidth = 2.5;
+      curvePoints.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+
+      // Draw points & percentage text
+      curvePoints.forEach(pt => {
+        // Outer glow/dot
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = curveStroke;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = dotBorder;
+        ctx.stroke();
+
+        // Inner white dot
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 1.8, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Label above point
+        ctx.fillStyle = pointTextFill;
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${pt.cat.cumPct.toFixed(1)}%`, pt.x, pt.y - 7);
+      });
+      ctx.restore();
+    }
+
+    // Legend / Summary in legendContainer
+    if (legendContainer) {
+      const topVitalFew = displayCategories.slice(0, vitalFewCount).filter(c => !c.isOther);
+      const vitalSum = topVitalFew.reduce((s, c) => s + c.count, 0);
+      const vitalPct = totalOverallMetric > 0 ? ((vitalSum / totalOverallMetric) * 100).toFixed(1) : 0;
+      const metricUnit = isSNMode ? 'Unique SNs' : 'Defect Qty';
+
+      legendContainer.innerHTML = `
+        <div class="pareto-vital-few-badge" title="80/20 Pareto Principle: The vital few causes generate the vast majority of defect fallout">
+          <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
+          <span><strong>Vital Few:</strong> Top ${topVitalFew.length} of ${categories.length} categories generate <strong>${vitalPct}%</strong> of total fallout (${vitalSum.toLocaleString()} ${metricUnit})</span>
+        </div>
+        <div class="chart-legend-item">
+          <span class="chart-legend-color" style="background:#38bdf8;"></span>
+          <span>Vital Few (${dimLabel})</span>
+        </div>
+        <div class="chart-legend-item">
+          <span class="chart-legend-color" style="background:#64748b;"></span>
+          <span>Trivial Many / Other</span>
+        </div>
+        <div class="chart-legend-item">
+          <span class="chart-legend-color" style="background:#f59e0b; height: 3px; border-radius: 1px;"></span>
+          <span>Cumulative % Curve</span>
+        </div>
+        <div class="pareto-threshold-legend">
+          <span>--- 80% Threshold</span>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons({ el: legendContainer });
+    }
+
+    this.bindParetoHover(container, canvas);
+  }
+
+  bindParetoHover(container, canvas) {
+    const tooltip = document.getElementById('chart-tooltip');
+    if (!tooltip || !canvas) return;
+
+    canvas.onmousemove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (!this.chartHitboxes || this.chartHitboxes.length === 0) {
+        tooltip.style.display = 'none';
+        return;
+      }
+
+      const hit = this.chartHitboxes.find(hb => mouseX >= hb.slotLeft && mouseX <= hb.slotRight);
+
+      if (hit && hit.paretoCat) {
+        const cat = hit.paretoCat;
+        const isSN = this.chartMetric === 'uniqueSN';
+        const metricName = isSN ? 'Unique SNs' : 'Defect Occurrences';
+
+        tooltip.innerHTML = `
+          <div style="font-weight:700; color:#38bdf8; margin-bottom:4px; font-size:0.85rem;">${this.escapeHtml(cat.name)}</div>
+          <div style="font-size:0.78rem; color:#f8fafc; margin-bottom:3px;"><strong>${metricName}:</strong> ${cat.count.toLocaleString()}</div>
+          <div style="font-size:0.78rem; color:#94a3b8; margin-bottom:3px;"><strong>Percent of Total:</strong> ${cat.pctOfTotal.toFixed(1)}%</div>
+          <div style="font-size:0.78rem; color:#fbbf24;"><strong>Cumulative Percent:</strong> ${cat.cumPct.toFixed(1)}%</div>
+        `;
+        tooltip.style.display = 'block';
+
+        let tooltipLeft = hit.xCenter - 110;
+        if (tooltipLeft < 10) tooltipLeft = 10;
+        if (tooltipLeft + 230 > rect.width) tooltipLeft = rect.width - 235;
+
+        let tooltipTop = hit.pointY - 95;
+        if (tooltipTop < 10) {
+          tooltipTop = hit.pointY + 25;
+        }
+
+        tooltip.style.left = `${Math.round(tooltipLeft)}px`;
+        tooltip.style.top = `${Math.round(tooltipTop)}px`;
+      } else {
+        tooltip.style.display = 'none';
+      }
+    };
+
+    canvas.onmouseleave = () => {
+      if (tooltip) tooltip.style.display = 'none';
+    };
+  }
+
+  generateExportCanvas() {
+    const mainCanvas = document.getElementById('timeline-chart-canvas');
+    if (!mainCanvas) return null;
+
+    const exportCanvas = document.createElement('canvas');
+    const width = 1600;
+    const height = 960;
+    exportCanvas.width = width;
+    exportCanvas.height = height;
+    const ctx = exportCanvas.getContext('2d');
+
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const isDark = currentTheme === 'dark';
+
+    // Background
+    ctx.fillStyle = isDark ? '#0f172a' : '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    // Header border / brand accent
+    const grad = ctx.createLinearGradient(0, 0, width, 0);
+    grad.addColorStop(0, '#0284c7');
+    grad.addColorStop(0.5, '#38bdf8');
+    grad.addColorStop(1, '#818cf8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, 5);
+
+    // Title & Context
+    ctx.fillStyle = isDark ? '#ffffff' : '#0f172a';
+    ctx.font = 'bold 24px Inter, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const titleText = this.chartViewMode === 'pareto' 
+      ? 'Benchmark Electronics - Defect Pareto 80/20 Analysis' 
+      : 'Benchmark Electronics - Defect Timeline Trend Analysis';
+    ctx.fillText(titleText, 40, 24);
+
+    // Subtitle & Breadcrumbs
+    ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+    ctx.font = '14px Inter, sans-serif';
+    let trail = 'All Customers & Programs';
+    const maximal = window.dataStore ? window.dataStore.maximalSelectedNodes : [];
+    if (maximal && maximal.length > 1) {
+      const names = maximal.map(n => n.name);
+      trail = `Multi-Selection (${maximal.length} items: ${names.slice(0, 3).join(', ')}${maximal.length > 3 ? '...' : ''})`;
+    } else {
+      const selected = window.dataStore ? window.dataStore.selectedNode : null;
+      if (selected) {
+        const parts = [];
+        if (selected.customer) parts.push(`Customer: ${selected.customer}`);
+        if (selected.level >= 2 && selected.parentPartNo) parts.push(`Part: ${selected.parentPartNo}`);
+        if (selected.level >= 3 && selected.processRecorded) parts.push(`Process: ${selected.processRecorded}`);
+        if (selected.level >= 4 && selected.defectDescription) parts.push(`Defect: ${selected.defectDescription}`);
+        if (selected.level >= 5 && selected.refDes) parts.push(`Ref Des: ${selected.refDes}`);
+        trail = parts.join(' ➔ ');
+      }
+    }
+    const metricLabel = this.chartMetric === 'uniqueSN' ? 'Metric: Unique Board SNs' : 'Metric: Defect Quantity';
+    const dateRange = (window.dataStore && window.dataStore.startDate && window.dataStore.endDate) 
+      ? `Date Range: ${window.dataStore.startDate} to ${window.dataStore.endDate}` 
+      : 'Date Range: All Time';
+    ctx.fillText(`${trail}  |  ${metricLabel}  |  ${dateRange}`, 40, 58);
+
+    // Timestamp
+    ctx.fillStyle = isDark ? '#64748b' : '#94a3b8';
+    ctx.font = '12px Inter, sans-serif';
+    ctx.textAlign = 'right';
+    const nowStr = new Date().toLocaleString();
+    ctx.fillText(`Generated: ${nowStr}`, width - 40, 32);
+
+    // Draw main chart
+    const chartX = 40;
+    const chartY = 95;
+    const chartW = width - 80;
+    const chartH = height - 125;
+
+    // Draw border around chart area
+    ctx.strokeStyle = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(chartX, chartY, chartW, chartH);
+
+    ctx.drawImage(mainCanvas, chartX, chartY, chartW, chartH);
+
+    return exportCanvas;
+  }
+
+  exportChartPNG() {
+    const exportCanvas = this.generateExportCanvas();
+    if (!exportCanvas) return;
+
+    const mode = this.chartViewMode || 'chart';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `Defect_${mode.toUpperCase()}_Analysis_${dateStr}.png`;
+
+    exportCanvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      this.showToast(`📊 Exported ${filename}`);
+    }, 'image/png');
+  }
+
+  async copyChartClipboard() {
+    const exportCanvas = this.generateExportCanvas();
+    if (!exportCanvas) return;
+
+    if (!navigator.clipboard || !navigator.clipboard.write) {
+      this.showToast('⚠️ Clipboard image write not supported in this browser. Please use Download PNG.');
+      return;
+    }
+
+    try {
+      exportCanvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          this.showToast('📋 Chart image copied to clipboard! (Ready to paste into PowerPoint, Word, or Teams)');
+        } catch (err) {
+          console.warn('Clipboard write failed:', err);
+          this.showToast('⚠️ Could not copy image to clipboard. Downloading PNG instead.');
+          this.exportChartPNG();
+        }
+      }, 'image/png');
+    } catch (e) {
+      this.exportChartPNG();
+    }
   }
 }
 

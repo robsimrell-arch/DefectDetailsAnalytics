@@ -15,13 +15,18 @@ xcopy "%~dp0css" "%TARGET_DIR%\css\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0data" "%TARGET_DIR%\data\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0js" "%TARGET_DIR%\js\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0lib" "%TARGET_DIR%\lib\" /E /Y /I /Q >nul 2>&1
+xcopy "%~dp0runtime" "%TARGET_DIR%\runtime\" /E /Y /I /Q >nul 2>&1
 copy "%~dp0index.html" "%TARGET_DIR%\index.html" /Y >nul 2>&1
-copy "%~dp0server.exe" "%TARGET_DIR%\server.exe" /Y >nul 2>&1
 copy "%~dp0server.py" "%TARGET_DIR%\server.py" /Y >nul 2>&1
+if exist "%TARGET_DIR%\server.exe" del /F /Q "%TARGET_DIR%\server.exe" >nul 2>&1
 
 echo.
 echo Launching local server and opening dashboard...
-start "" "%TARGET_DIR%\server.exe"
+if exist "%TARGET_DIR%\runtime\pythonw.exe" (
+    start "" "%TARGET_DIR%\runtime\pythonw.exe" "%TARGET_DIR%\server.py"
+) else (
+    start "" pythonw "%TARGET_DIR%\server.py"
+)
 
 echo.
 echo ============================================================

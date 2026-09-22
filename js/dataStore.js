@@ -5,7 +5,10 @@ class DataStore {
   constructor() {
     this.rawRecords = [];
     this.treeData = [];
-    this.selectedNode = null; // { level: 1..5, customer, parentPartNo, processRecorded, defectDescription, refDes }
+    this.selectedKeys = new Set();
+    this.maximalSelectedNodes = [];
+    this.treeNodeMap = new Map();
+    this.lastSelectedKey = null;
     this.searchQuery = '';
     this.searchTarget = 'all'; // 'all' | 'refDes' | 'serialNo' | 'failureComments' | 'comments' | 'parts'
     this.fixFilter = 'all'; // 'all' | 'Yes' | 'No' | 'Pending'
@@ -42,8 +45,6 @@ class DataStore {
     } catch (e) {}
 
     try {
-      // Always purge local storage annotations cache on startup so all workstations read server API
-      localStorage.removeItem('DEFECT_APP_FIX_ANNOTATIONS');
       localStorage.removeItem('DEFECT_APP_SAVED_DATA');
       localStorage.removeItem('DEFECT_APP_SAVED_FILENAME');
       localStorage.removeItem('DEFECT_APP_SAVED_TIMESTAMP');
@@ -80,21 +81,151 @@ class DataStore {
     this.loadInitialDatasetAsync();
   }
 
-  async loadInitialDatasetAsync() {
-    if (window.location.protocol !== 'file:') {
+  async _openIndexedDB() {
+    return new Promise((resolve) => {
+      if (!window.indexedDB) return resolve(null);
       try {
-        const res = await fetch('/api/dataset?t=' + Date.now());
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            console.log('[DataStore] Auto-loaded ' + data.length + ' records from /api/dataset');
-            this.setRecords(data, 'DefectDetails.xls', true);
+        const req = window.indexedDB.open('DefectAnalyticsDB', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('dataset_cache')) {
+            db.createObjectStore('dataset_cache');
           }
-        }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => resolve(null);
       } catch (e) {
-        console.warn('[DataStore] loadInitialDatasetAsync failed:', e);
+        resolve(null);
       }
+    });
+  }
+
+  async _getIDBCache() {
+    try {
+      const db = await this._openIndexedDB();
+      if (!db) return null;
+      return new Promise((resolve) => {
+        const tx = db.transaction('dataset_cache', 'readonly');
+        const store = tx.objectStore('dataset_cache');
+        const req = store.get('latest_records');
+        req.onsuccess = (e) => resolve(e.target.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch (e) {
+      return null;
     }
+  }
+
+  async _setIDBCache(records, updatedAt) {
+    try {
+      const db = await this._openIndexedDB();
+      if (!db) return;
+      const tx = db.transaction('dataset_cache', 'readwrite');
+      const store = tx.objectStore('dataset_cache');
+      store.put({ records, updatedAt }, 'latest_records');
+    } catch (e) {}
+  }
+
+  async loadInitialDatasetAsync() {
+    if (this._datasetLoadPromise) return this._datasetLoadPromise;
+
+    this._datasetLoadPromise = (async () => {
+      const statusEl = document.getElementById('loader-status-text');
+      const progressContainer = document.getElementById('loader-progress-bar');
+      const progressFill = document.getElementById('loader-progress-fill');
+
+      const updateProgress = (text, percent) => {
+        if (statusEl) statusEl.textContent = text;
+        if (progressContainer && percent !== null) {
+          progressContainer.style.display = 'block';
+          if (progressFill) progressFill.style.width = Math.min(100, Math.max(0, percent)) + '%';
+        }
+      };
+
+      // 1. Instant Cache Load from IndexedDB (<0.15s)
+      let cachedEntry = null;
+      try {
+        cachedEntry = await this._getIDBCache();
+        if (cachedEntry && Array.isArray(cachedEntry.records) && cachedEntry.records.length > 0) {
+          console.log('[DataStore] Instant launch with ' + cachedEntry.records.length + ' records from IndexedDB');
+          updateProgress('Instant start from local cache...', 100);
+          this.setRecords(cachedEntry.records, 'DefectDetails.xls', false);
+          if (cachedEntry.updatedAt) {
+            this.lastDatasetFingerprint = cachedEntry.updatedAt;
+          }
+          this.lastSyncTime = new Date();
+          this.syncStatus = 'connected';
+          this.updateSyncBadgeOnly();
+          const loader = document.getElementById('app-startup-loader');
+          if (loader) loader.classList.add('hidden');
+        }
+      } catch (eCache) {}
+
+      // Trigger parallel immediate fetch of live annotations at launch (<0.1s)
+      if (window.location.protocol !== 'file:') {
+        this.loadServerAnnotations();
+      }
+
+      // 2. Fetch from server if in HTTP mode
+      if (window.location.protocol !== 'file:') {
+        try {
+          let needsFullFetch = true;
+          let serverMtime = "";
+          try {
+            const statRes = await fetch('/api/status?t=' + Date.now(), { cache: 'no-store' });
+            if (statRes.ok) {
+              const statData = await statRes.json();
+              serverMtime = statData.dataset_updated_at || "";
+              this.lastSyncTime = new Date();
+              this.syncStatus = 'connected';
+              this.updateSyncBadgeOnly();
+              if (cachedEntry && cachedEntry.updatedAt && serverMtime === cachedEntry.updatedAt && this.rawRecords.length > 0) {
+                needsFullFetch = false;
+                this.lastDatasetFingerprint = serverMtime;
+                console.log('[DataStore] Cached dataset is already up to date with server.');
+              }
+            }
+          } catch (eStat) {}
+
+          if (needsFullFetch) {
+            updateProgress('Connecting to data engine...', 20);
+            const res = await fetch('/api/dataset');
+            if (res.ok) {
+              updateProgress('Downloading & parsing defect records...', 60);
+              const data = await res.json();
+
+              if (Array.isArray(data) && data.length > 0) {
+                updateProgress(`Indexing ${data.length.toLocaleString()} defect records...`, 98);
+                const lastModified = serverMtime || res.headers.get('Last-Modified') || String(Date.now());
+                this.lastDatasetFingerprint = lastModified;
+                this._setIDBCache(data, lastModified);
+                this.lastSyncTime = new Date();
+                this.syncStatus = 'connected';
+                this.updateSyncBadgeOnly();
+                setTimeout(() => {
+                  this.setRecords(data, 'DefectDetails.xls', true);
+                  this.lastSyncTime = new Date();
+                  this.syncStatus = 'connected';
+                  this.updateSyncBadgeOnly();
+                  const loader = document.getElementById('app-startup-loader');
+                  if (loader) loader.classList.add('hidden');
+                }, 10);
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[DataStore] loadInitialDatasetAsync failed:', e);
+        }
+      }
+
+      // Fallback check
+      if (this.rawRecords.length === 0 && window.SHARED_DEFECT_DATA && window.SHARED_DEFECT_DATA.length > 0) {
+        this.setRecords(window.SHARED_DEFECT_DATA, 'DefectDetails.xls', true);
+      }
+    })();
+
+    return this._datasetLoadPromise;
   }
 
   initInitialAnnotations() {
@@ -102,6 +233,19 @@ class DataStore {
     if (window.SHARED_FIX_ANNOTATIONS && typeof window.SHARED_FIX_ANNOTATIONS === 'object') {
       this.annotationsMap = JSON.parse(JSON.stringify(window.SHARED_FIX_ANNOTATIONS));
     }
+    try {
+      const localCached = localStorage.getItem('DEFECT_APP_FIX_ANNOTATIONS');
+      if (localCached) {
+        const parsed = JSON.parse(localCached);
+        if (parsed && typeof parsed === 'object') {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (v && typeof v === 'object' && !this.annotationsMap[k]) {
+              this.annotationsMap[k] = v;
+            }
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   mergeAnnotations(remoteData) {
@@ -128,34 +272,57 @@ class DataStore {
     if (this.rawRecords && this.rawRecords.length > 0) {
       let yes = 0;
       let no = 0;
+      let falseFail = 0;
+      let possibleFalseFail = 0;
       for (let i = 0; i < this.rawRecords.length; i++) {
         const fix = this.rawRecords[i].confirmedFix;
         if (fix === 'Yes') yes++;
         else if (fix === 'No') no++;
+        else if (fix === 'False Fail') falseFail++;
+        else if (fix === 'Possible False Fail') possibleFalseFail++;
       }
-      return { yes, no };
+      return { yes, no, falseFail, possibleFalseFail };
     }
 
     const uniqueYes = new Set();
     const uniqueNo = new Set();
+    const uniqueFalseFail = new Set();
+    const uniquePossibleFalseFail = new Set();
     const map = this.annotationsMap || {};
     Object.values(map).forEach(ann => {
       if (!ann || typeof ann !== 'object') return;
       const fix = ann.confirmedFix;
-      if (fix !== 'Yes' && fix !== 'No') return;
+      if (fix !== 'Yes' && fix !== 'No' && fix !== 'False Fail' && fix !== 'Possible False Fail') return;
       const key = ann.key || (ann.serialNo && ann.faDate ? `${ann.serialNo}_${ann.faDate}` : '');
       if (!key) return;
       if (fix === 'Yes') {
         uniqueYes.add(key);
         uniqueNo.delete(key);
+        uniqueFalseFail.delete(key);
+        uniquePossibleFalseFail.delete(key);
       } else if (fix === 'No') {
-        if (!uniqueYes.has(key)) uniqueNo.add(key);
+        uniqueNo.add(key);
+        uniqueYes.delete(key);
+        uniqueFalseFail.delete(key);
+        uniquePossibleFalseFail.delete(key);
+      } else if (fix === 'False Fail') {
+        uniqueFalseFail.add(key);
+        uniqueYes.delete(key);
+        uniqueNo.delete(key);
+        uniquePossibleFalseFail.delete(key);
+      } else if (fix === 'Possible False Fail') {
+        uniquePossibleFalseFail.add(key);
+        uniqueYes.delete(key);
+        uniqueNo.delete(key);
+        uniqueFalseFail.delete(key);
       }
     });
 
     return {
       yes: uniqueYes.size,
-      no: uniqueNo.size
+      no: uniqueNo.size,
+      falseFail: uniqueFalseFail.size,
+      possibleFalseFail: uniquePossibleFalseFail.size
     };
   }
 
@@ -237,7 +404,7 @@ class DataStore {
       // Auto-recovery: If rawRecords is empty in HTTP mode, fetch active dataset from server
       if (this.rawRecords.length === 0 && window.location.protocol !== 'file:') {
         try {
-          const res = await fetch('/api/dataset?t=' + Date.now());
+          const res = await fetch('/api/dataset');
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data) && data.length > 0) {
@@ -364,6 +531,10 @@ class DataStore {
     this.isSyncing = true;
 
     try {
+      if (window.mainPanel && typeof window.mainPanel.updateKpiSyncState === 'function') {
+        window.mainPanel.updateKpiSyncState('syncing');
+      }
+
       let dataChanged = false;
       const baseUrl = await this.getActiveServerUrl();
 
@@ -390,26 +561,45 @@ class DataStore {
           if (resAnn.ok) {
             const dataAnn = await resAnn.json();
             if (dataAnn && typeof dataAnn === 'object') {
-              const oldKeys = Object.keys(this.annotationsMap);
-              const newKeys = Object.keys(dataAnn);
-              let hasChange = (oldKeys.length !== newKeys.length);
-              if (!hasChange) {
-                for (let k of newKeys) {
-                  const oldItem = this.annotationsMap[k];
-                  const newItem = dataAnn[k];
-                  if (!oldItem || oldItem.confirmedFix !== newItem.confirmedFix || oldItem.fixComment !== newItem.fixComment) {
+              let hasChange = false;
+              for (const [k, v] of Object.entries(dataAnn)) {
+                if (!v || typeof v !== 'object') continue;
+                const old = this.annotationsMap[k];
+                if (!old) {
+                  this.annotationsMap[k] = v;
+                  hasChange = true;
+                } else {
+                  const newFix = v.confirmedFix;
+                  const oldFix = old.confirmedFix;
+                  if (newFix && newFix !== oldFix) {
+                    old.confirmedFix = newFix;
                     hasChange = true;
-                    break;
+                  }
+                  if (v.fixComment !== undefined && v.fixComment !== old.fixComment) {
+                    old.fixComment = v.fixComment;
+                    hasChange = true;
+                  }
+                  if (v.solutionMemo !== undefined && v.solutionMemo !== old.solutionMemo) {
+                    old.solutionMemo = v.solutionMemo;
+                    hasChange = true;
                   }
                 }
               }
               if (hasChange) {
-                this.annotationsMap = dataAnn;
+                try {
+                  localStorage.setItem('DEFECT_APP_FIX_ANNOTATIONS', JSON.stringify(this.annotationsMap));
+                } catch (eSave) {}
+                this.applyAnnotationsToRecords();
+                this.buildTree();
+                this.pendingNotify = true;
                 dataChanged = true;
               }
             }
             this.lastSyncTime = new Date();
             this.syncStatus = 'connected';
+            if (window.mainPanel && typeof window.mainPanel.updateKpiSyncState === 'function') {
+              window.mainPanel.updateKpiSyncState('synced');
+            }
           }
 
           // 3. ONLY fetch 27.8MB dataset if rawRecords is empty OR dataset timestamp has changed!
@@ -421,6 +611,7 @@ class DataStore {
               const remoteRecords = await resDs.json();
               if (Array.isArray(remoteRecords) && remoteRecords.length > 0) {
                 this.lastDatasetFingerprint = remoteMtime || (remoteRecords.length + '_' + (remoteRecords[0] ? (remoteRecords[0].serialNo || remoteRecords[0].id) : ''));
+                this._setIDBCache(remoteRecords, this.lastDatasetFingerprint);
                 this.setRecords(remoteRecords, 'DefectDetails.xls', true);
                 dataChanged = true;
               }
@@ -783,10 +974,14 @@ class DataStore {
 
       const newFix = bestAnn ? (bestAnn.confirmedFix || 'Pending') : 'Pending';
       const newComment = bestAnn ? (bestAnn.fixComment || '') : '';
+      const newConfirmedAt = bestAnn ? (bestAnn.updatedAt || bestAnn.confirmedAt || null) : null;
+      const newConfirmedTimestamp = newConfirmedAt ? this.parseDate(newConfirmedAt) : 0;
 
-      if (rec.confirmedFix !== newFix || rec.fixComment !== newComment) {
+      if (rec.confirmedFix !== newFix || rec.fixComment !== newComment || rec.confirmedAt !== newConfirmedAt) {
         rec.confirmedFix = newFix;
         rec.fixComment = newComment;
+        rec.confirmedAt = newConfirmedAt;
+        rec._confirmedTimestamp = newConfirmedTimestamp;
         rec._searchStr = this.buildSearchStr(rec);
         changedCount++;
       }
@@ -1035,11 +1230,11 @@ class DataStore {
   }
 
   normalizeRecord(r, idx) {
-    const parentPart = (r.parentPartNo || r['Parent Part No.'] || 'UNKNOWN').toString().trim();
-    const refDesRaw = (r.refDes || r['Ref Des'] || '').toString().trim();
-    const serialNo = (r.serialNo || r['Serial No.'] || '').toString().trim();
-    const faDate = (r.faDate || r['F.A. Date'] || '').toString().trim();
-    const processRecorded = (r.processRecorded || r['Process Recorded'] || 'UNSPECIFIED PROCESS').toString().trim();
+    const parentPart = (r.parentPartNo || r['Parent Part No.'] || r['Parent Part No'] || r['Parent Part Number'] || r['ParentPartNo'] || r['Part Number'] || r['Part No'] || 'UNKNOWN').toString().trim();
+    const refDesRaw = (r.refDes || r['Ref Des'] || r['RefDes'] || r['Reference Designator'] || r['Ref_Des'] || '').toString().trim();
+    const serialNo = (r.serialNo || r['Serial No.'] || r['Serial No'] || r['Serial Number'] || r['SerialNo'] || r['SN'] || '').toString().trim();
+    const faDate = (r.faDate || r['F.A. Date'] || r['FA Date'] || r['Date'] || r['fa_date'] || '').toString().trim();
+    const processRecorded = (r.processRecorded || r['Process Recorded'] || r['Process'] || r['Operation'] || 'UNSPECIFIED PROCESS').toString().trim();
     const customer = this.deriveCustomer(r, parentPart, serialNo);
 
     const rec = {
@@ -1049,34 +1244,43 @@ class DataStore {
       processRecorded: processRecorded ? processRecorded : 'UNSPECIFIED PROCESS',
       serialNo: serialNo,
       faDate: faDate,
-      whoFailed: (r.whoFailed || r['Who Failed'] || '').toString().trim(),
+      whoFailed: (r.whoFailed || r['Who Failed'] || r['Inspector'] || r['Operator'] || '').toString().trim(),
       failureCode: (r.failureCode || r['Failure Code'] || '').toString().trim(),
       failureDescription: (r.failureDescription || r['Failure Description'] || '').toString().trim(),
       failureComment: (r.failureComment || r['Failure Comment'] || '').toString().trim(),
       defectCode: (r.defectCode || r['Defect Code'] || '').toString().trim(),
-      defectDescription: (r.defectDescription || r['Defect Description'] || 'UNSPECIFIED DEFECT').toString().trim(),
-      debugTech: (r.debugTech || r['Debug Tech'] || '').toString().trim(),
-      defectComment: (r.defectComment || r['Defect Comment'] || '').toString().trim(),
-      defectQuantity: parseInt(r.defectQuantity || r['Defect Quantity'] || 1, 10) || 1,
+      defectDescription: (r.defectDescription || r['Defect Description'] || r['Defect'] || 'UNSPECIFIED DEFECT').toString().trim(),
+      debugTech: (r.debugTech || r['Debug Tech'] || r['Technician'] || '').toString().trim(),
+      defectComment: (r.defectComment || r['Defect Comment'] || r['Comment'] || '').toString().trim(),
+      defectQuantity: parseInt(r.defectQuantity || r['Defect Quantity'] || r['Defect Qty'] || r['Qty'] || 1, 10) || 1,
       refDes: refDesRaw ? refDesRaw : '[Unassigned Ref Des]',
       repairCode: (r.repairCode || r['Repair Code'] || '').toString().trim(),
       repairDescription: (r.repairDescription || r['Repair Description'] || '').toString().trim(),
       repairTech: (r.repairTech || r['Repair Tech'] || '').toString().trim(),
       repairComment: (r.repairComment || r['Repair Comment'] || '').toString().trim(),
       confirmedFix: r.confirmedFix || 'Pending',
-      fixComment: r.fixComment || ''
+      fixComment: r.fixComment || '',
+      confirmedAt: r.confirmedAt || r.updatedAt || null
     };
 
     rec._timestamp = this.parseDate(rec.faDate);
+    rec._confirmedTimestamp = rec.confirmedAt ? this.parseDate(rec.confirmedAt) : 0;
     rec._searchStr = this.buildSearchStr(rec);
 
     return rec;
   }
 
   buildSearchStr(rec) {
-    const fixTerms = rec.confirmedFix === 'Yes' 
-      ? 'yes confirmed solution fix' 
-      : (rec.confirmedFix === 'No' ? 'no failed fix' : 'pending');
+    let fixTerms = 'pending';
+    if (rec.confirmedFix === 'Yes') {
+      fixTerms = 'yes confirmed solution fix';
+    } else if (rec.confirmedFix === 'No') {
+      fixTerms = 'no failed fix';
+    } else if (rec.confirmedFix === 'False Fail') {
+      fixTerms = 'false fail fix';
+    } else if (rec.confirmedFix === 'Possible False Fail') {
+      fixTerms = 'possible false fail fix';
+    }
     return `${rec.customer} ${rec.parentPartNo} ${rec.processRecorded} ${rec.defectDescription} ${rec.refDes} ${rec.serialNo} ${rec.defectComment} ${rec.failureComment} ${rec.failureDescription} ${rec.repairComment} ${rec.repairDescription} ${rec.fixComment} ${rec.whoFailed} ${rec.debugTech} ${rec.repairTech} ${rec.failureCode} ${rec.defectCode} ${rec.repairCode} ${fixTerms}`.toLowerCase();
   }
 
@@ -1207,25 +1411,37 @@ class DataStore {
 
     this.rawRecords.sort((a, b) => this.parseDate(b.faDate) - this.parseDate(a.faDate));
 
-    const { minDateStr, maxDateStr } = this.getMinMaxDates();
-    if (this.datePreset === 'all' || !this.startDate || !this.endDate) {
+    const { minDateStr, maxDateStr, maxTime } = this.getMinMaxDates();
+
+    // Preserve active date preset if user has selected 7d, 30d, 90d, etc.
+    if (this.datePreset && this.datePreset !== 'all' && this.datePreset !== 'custom' && maxTime && maxTime > 0) {
+      const maxD = new Date(maxTime);
+      const pad = num => String(num).padStart(2, '0');
+      this.endDate = `${maxD.getFullYear()}-${pad(maxD.getMonth() + 1)}-${pad(maxD.getDate())}`;
+
+      let days = 30;
+      if (this.datePreset === '7d') days = 7;
+      if (this.datePreset === '90d') days = 90;
+
+      const startD = new Date(maxTime - (days * 24 * 60 * 60 * 1000));
+      this.startDate = `${startD.getFullYear()}-${pad(startD.getMonth() + 1)}-${pad(startD.getDate())}`;
+    } else if (this.datePreset === 'all' || !this.startDate || !this.endDate) {
       this.startDate = minDateStr;
       this.endDate = maxDateStr;
     }
 
     this.buildTree();
 
-    if (this.treeData.length === 0 && this.rawRecords.length > 0) {
-      this.searchQuery = '';
-      this.searchTarget = 'all';
-      this.fixFilter = 'all';
-      this.datePreset = 'all';
-      this.startDate = minDateStr;
-      this.endDate = maxDateStr;
-      this.buildTree();
+    // Preserve valid selected keys in treeNodeMap
+    if (this.selectedKeys && this.selectedKeys.size > 0 && this.treeNodeMap) {
+      for (const k of Array.from(this.selectedKeys)) {
+        if (!this.treeNodeMap.has(k)) {
+          this.selectedKeys.delete(k);
+        }
+      }
+      this.recomputeMaximalSelectedNodes();
     }
-    
-    this.selectedNode = null;
+
     this.notify();
 
     const loader = document.getElementById('app-startup-loader');
@@ -1353,7 +1569,7 @@ class DataStore {
         window.mainPanel.showToast('📡 Publishing updated dataset to network share...');
       }
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutes timeout for large datasets
 
       const res = await fetch(`${baseUrl}/api/dataset`, {
         method: 'POST',
@@ -1370,6 +1586,7 @@ class DataStore {
           this.lastDatasetFingerprint = this.rawRecords.length + '_' + (this.rawRecords[0].serialNo || this.rawRecords[0].id) + '_' + (this.rawRecords[this.rawRecords.length - 1].serialNo || this.rawRecords[this.rawRecords.length - 1].id);
         }
         this.updateSyncBadgeOnly();
+        this._setIDBCache(this.rawRecords, String(Date.now()));
         if (window.mainPanel) {
           window.mainPanel.showToast('✅ Dataset successfully published to network share!');
         }
@@ -1469,14 +1686,244 @@ class DataStore {
     alert('📥 Downloaded defect_details.json!\n\nPlease place/overwrite this file in the data/ folder on your shared drive so all network machines see the new dataset.');
   }
 
+  get selectedNode() {
+    if (this.maximalSelectedNodes && this.maximalSelectedNodes.length === 1) {
+      return this.maximalSelectedNodes[0];
+    }
+    return null;
+  }
+
+  set selectedNode(node) {
+    if (!node) {
+      this.clearTreeSelection(false);
+      return;
+    }
+    let key = '';
+    if (node.key) {
+      key = node.key;
+    } else if (node.level === 1) {
+      key = `c:${node.customer}`;
+    } else if (node.level === 2) {
+      key = `c:${node.customer}>p:${node.parentPartNo}`;
+    } else if (node.level === 3) {
+      key = `c:${node.customer}>p:${node.parentPartNo}>pr:${node.processRecorded}`;
+    } else if (node.level === 4) {
+      key = `c:${node.customer}>p:${node.parentPartNo}>pr:${node.processRecorded}>d:${node.defectDescription}`;
+    } else if (node.level === 5) {
+      key = `c:${node.customer}>p:${node.parentPartNo}>pr:${node.processRecorded}>d:${node.defectDescription}>r:${node.refDes}`;
+    }
+
+    this.clearTreeSelection(false);
+    if (key && this.treeNodeMap && this.treeNodeMap.has(key)) {
+      this.toggleNodeChecked(key, true, false);
+    }
+  }
+
   setSelectedNode(node) {
     this.selectedNode = node;
     this.notify();
   }
 
+  toggleNodeChecked(key, shouldCheck, shouldNotify = true) {
+    if (!this.treeNodeMap) return;
+    const node = this.treeNodeMap.get(key);
+    if (!node) return;
+
+    if (shouldCheck) {
+      this.selectedKeys.add(key);
+      if (node.allDescendantKeys) {
+        for (let i = 0; i < node.allDescendantKeys.length; i++) {
+          this.selectedKeys.add(node.allDescendantKeys[i]);
+        }
+      }
+    } else {
+      this.selectedKeys.delete(key);
+      if (node.allDescendantKeys) {
+        for (let i = 0; i < node.allDescendantKeys.length; i++) {
+          this.selectedKeys.delete(node.allDescendantKeys[i]);
+        }
+      }
+    }
+
+    // Update ancestors bottom-up
+    let currKey = node.parentKey;
+    while (currKey) {
+      const pNode = this.treeNodeMap.get(currKey);
+      if (!pNode) break;
+      const allChecked = pNode.childKeys && pNode.childKeys.length > 0 && pNode.childKeys.every(ck => this.selectedKeys.has(ck));
+      if (allChecked) {
+        this.selectedKeys.add(currKey);
+      } else {
+        this.selectedKeys.delete(currKey);
+      }
+      currKey = pNode.parentKey;
+    }
+
+    this.lastSelectedKey = key;
+    this.recomputeMaximalSelectedNodes();
+
+    if (shouldNotify) {
+      this.notify();
+    }
+  }
+
+  selectNodeKeysRange(keysList, shouldCheck, shouldNotify = true) {
+    if (!Array.isArray(keysList) || keysList.length === 0) return;
+    for (const k of keysList) {
+      const node = this.treeNodeMap.get(k);
+      if (!node) continue;
+      if (shouldCheck) {
+        this.selectedKeys.add(k);
+        if (node.allDescendantKeys) {
+          for (let i = 0; i < node.allDescendantKeys.length; i++) {
+            this.selectedKeys.add(node.allDescendantKeys[i]);
+          }
+        }
+      } else {
+        this.selectedKeys.delete(k);
+        if (node.allDescendantKeys) {
+          for (let i = 0; i < node.allDescendantKeys.length; i++) {
+            this.selectedKeys.delete(node.allDescendantKeys[i]);
+          }
+        }
+      }
+    }
+
+    const visitedParents = new Set();
+    for (const k of keysList) {
+      let p = this.treeNodeMap.get(k)?.parentKey;
+      while (p && !visitedParents.has(p)) {
+        visitedParents.add(p);
+        const pNode = this.treeNodeMap.get(p);
+        if (!pNode) break;
+        const allChecked = pNode.childKeys && pNode.childKeys.length > 0 && pNode.childKeys.every(ck => this.selectedKeys.has(ck));
+        if (allChecked) {
+          this.selectedKeys.add(p);
+        } else {
+          this.selectedKeys.delete(p);
+        }
+        p = pNode.parentKey;
+      }
+    }
+
+    this.recomputeMaximalSelectedNodes();
+    if (shouldNotify) {
+      this.notify();
+    }
+  }
+
+  recomputeMaximalSelectedNodes() {
+    const maximal = [];
+    if (this.selectedKeys && this.selectedKeys.size > 0 && this.treeNodeMap) {
+      for (const key of this.selectedKeys) {
+        const node = this.treeNodeMap.get(key);
+        if (!node) continue;
+        if (!node.parentKey || !this.selectedKeys.has(node.parentKey)) {
+          maximal.push(node);
+        }
+      }
+      maximal.sort((a, b) => {
+        if (a.level !== b.level) return a.level - b.level;
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      });
+    }
+    this.maximalSelectedNodes = maximal;
+  }
+
+  clearTreeSelection(shouldNotify = true) {
+    this.selectedKeys.clear();
+    this.maximalSelectedNodes = [];
+    this.lastSelectedKey = null;
+    if (shouldNotify) {
+      this.notify();
+    }
+  }
+
+  isNodeIndeterminate(key) {
+    if (this.selectedKeys.has(key)) return false;
+    const node = this.treeNodeMap.get(key);
+    if (!node || !node.allDescendantKeys || node.allDescendantKeys.length === 0) return false;
+    return node.allDescendantKeys.some(dk => this.selectedKeys.has(dk));
+  }
+
+  buildTreeNodeMap(tree) {
+    const map = new Map();
+
+    const traverse = (node, level, parentKey, custName, partName, procName, descName) => {
+      let key = '';
+      let customer = custName;
+      let parentPartNo = partName;
+      let processRecorded = procName;
+      let defectDescription = descName;
+      let refDes = '';
+
+      if (level === 1) {
+        key = `c:${node.name}`;
+        customer = node.name;
+      } else if (level === 2) {
+        key = `${parentKey}>p:${node.name}`;
+        parentPartNo = node.name;
+      } else if (level === 3) {
+        key = `${parentKey}>pr:${node.name}`;
+        processRecorded = node.name;
+      } else if (level === 4) {
+        key = `${parentKey}>d:${node.name}`;
+        defectDescription = node.name;
+      } else if (level === 5) {
+        key = `${parentKey}>r:${node.name}`;
+        refDes = node.name;
+      }
+
+      node.key = key;
+      node.level = level;
+      node.parentKey = parentKey;
+      node.customer = customer;
+      node.parentPartNo = parentPartNo;
+      node.processRecorded = processRecorded;
+      node.defectDescription = defectDescription;
+      node.refDes = refDes;
+
+      const childKeys = [];
+      const allDescendantKeys = [];
+
+      if (Array.isArray(node.children)) {
+        node.children.forEach(child => {
+          const childInfo = traverse(child, level + 1, key, customer, parentPartNo, processRecorded, defectDescription);
+          childKeys.push(childInfo.key);
+          allDescendantKeys.push(childInfo.key, ...childInfo.allDescendantKeys);
+        });
+      }
+
+      const nodeInfo = {
+        key,
+        level,
+        name: node.name,
+        customer,
+        parentPartNo,
+        processRecorded,
+        defectDescription,
+        refDes,
+        parentKey,
+        childKeys,
+        allDescendantKeys,
+        recordCount: node.recordCount,
+        totalQty: node.totalQty,
+        uniqueSNCount: node.uniqueSNCount
+      };
+
+      map.set(key, nodeInfo);
+      return nodeInfo;
+    };
+
+    if (Array.isArray(tree)) {
+      tree.forEach(cust => traverse(cust, 1, null, '', '', '', ''));
+    }
+
+    this.treeNodeMap = map;
+  }
+
   setSearchQuery(query) {
     this.searchQuery = (query || '').toLowerCase().trim();
-    this.selectedNode = null;
 
     const inputEl = document.getElementById('tree-search-input');
     if (inputEl && inputEl.value !== (query || '')) {
@@ -1489,7 +1936,6 @@ class DataStore {
 
   setSearchTarget(target) {
     this.searchTarget = target || 'all';
-    this.selectedNode = null;
     this.buildTree();
     this.notify();
   }
@@ -1498,7 +1944,7 @@ class DataStore {
     this.searchQuery = '';
     this.searchTarget = 'all';
     this.fixFilter = 'all';
-    this.selectedNode = null;
+    this.clearTreeSelection(false);
     this.datePreset = 'all';
     
     const { minDateStr, maxDateStr } = this.getMinMaxDates();
@@ -1522,7 +1968,6 @@ class DataStore {
     }
 
     this.updateDateInputsUI();
-    this.selectedNode = null;
     this.buildTree();
     this.notify();
   }
@@ -1694,6 +2139,10 @@ class DataStore {
     }).sort(countSort); // Level 1: Customer Total Records/SN Count Descending
 
     this.treeData = tree;
+    this.buildTreeNodeMap(tree);
+    if (this.selectedKeys && this.selectedKeys.size > 0) {
+      this.recomputeMaximalSelectedNodes();
+    }
     this.updateDateInputsUI();
     this.updateSyncBadgeOnly();
   }
@@ -1702,15 +2151,43 @@ class DataStore {
     let matched = this.rawRecords || [];
     matched = matched.filter(r => this.isDateInFilter(r.faDate));
 
-    if (this.selectedNode) {
-      const { level, customer, parentPartNo, processRecorded, defectDescription, refDes } = this.selectedNode;
+    if (this.maximalSelectedNodes && this.maximalSelectedNodes.length > 0) {
+      const custSet = new Set();
+      const partSet = new Set();
+      const procSet = new Set();
+      const descSet = new Set();
+      const refSet = new Set();
+
+      let hasCust = false, hasPart = false, hasProc = false, hasDesc = false, hasRef = false;
+
+      for (let i = 0; i < this.maximalSelectedNodes.length; i++) {
+        const n = this.maximalSelectedNodes[i];
+        if (n.level === 1) {
+          custSet.add(n.customer);
+          hasCust = true;
+        } else if (n.level === 2) {
+          partSet.add(`${n.customer}|||${n.parentPartNo}`);
+          hasPart = true;
+        } else if (n.level === 3) {
+          procSet.add(`${n.customer}|||${n.parentPartNo}|||${n.processRecorded}`);
+          hasProc = true;
+        } else if (n.level === 4) {
+          descSet.add(`${n.customer}|||${n.parentPartNo}|||${n.processRecorded}|||${n.defectDescription}`);
+          hasDesc = true;
+        } else if (n.level === 5) {
+          refSet.add(`${n.customer}|||${n.parentPartNo}|||${n.processRecorded}|||${n.defectDescription}|||${n.refDes}`);
+          hasRef = true;
+        }
+      }
+
       matched = matched.filter(rec => {
-        if (level >= 1 && rec.customer !== customer) return false;
-        if (level >= 2 && rec.parentPartNo !== parentPartNo) return false;
-        if (level >= 3 && rec.processRecorded !== processRecorded) return false;
-        if (level >= 4 && rec.defectDescription !== defectDescription) return false;
-        if (level >= 5 && rec.refDes !== refDes) return false;
-        return true;
+        if (hasCust && custSet.has(rec.customer)) return true;
+        if (hasPart && partSet.has(`${rec.customer}|||${rec.parentPartNo}`)) return true;
+        const proc = rec.processRecorded || 'UNSPECIFIED PROCESS';
+        if (hasProc && procSet.has(`${rec.customer}|||${rec.parentPartNo}|||${proc}`)) return true;
+        if (hasDesc && descSet.has(`${rec.customer}|||${rec.parentPartNo}|||${proc}|||${rec.defectDescription}`)) return true;
+        if (hasRef && refSet.has(`${rec.customer}|||${rec.parentPartNo}|||${proc}|||${rec.defectDescription}|||${rec.refDes}`)) return true;
+        return false;
       });
     }
 
@@ -1731,6 +2208,11 @@ class DataStore {
 
     if (this.fixFilter !== 'all') {
       matched = matched.filter(r => r.confirmedFix === this.fixFilter);
+      return matched.sort((a, b) => {
+        const diff = (b._confirmedTimestamp || 0) - (a._confirmedTimestamp || 0);
+        if (diff !== 0) return diff;
+        return (b._timestamp || 0) - (a._timestamp || 0);
+      });
     }
 
     return matched.sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0));

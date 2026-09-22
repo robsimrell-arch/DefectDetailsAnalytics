@@ -12,16 +12,10 @@ function initApp() {
 
   console.log('[APP] dataStore exists, rawRecords=' + window.dataStore.rawRecords.length);
 
-  // 1. Load central shared dataset data/defect_details.json (works on http://, may CORS-fail on file://)
-  loadDefaultDatasetAsync().then(function() {
-    // On file:// protocol, fetch fails. Check if deferred <script> has populated the globals:
-    var globalSource = window.SHARED_DEFECT_DATA;
-    if (globalSource && Array.isArray(globalSource) && globalSource.length > 0) {
-      if (window.dataStore.rawRecords.length === 0) {
-        window.dataStore.setRecords(globalSource, 'DefectDetails.xls', true);
-      }
-    }
-  });
+  // 1. Ensure dataset is loading through dataStore (handles IndexedDB cache + fast gzip fetch)
+  if (window.dataStore && typeof window.dataStore.loadInitialDatasetAsync === 'function') {
+    window.dataStore.loadInitialDatasetAsync();
+  }
 
   // 2. Start automatic background sync (polling for shared fixes and shared dataset updates)
   window.dataStore.startAutoSync(5000);
@@ -100,13 +94,29 @@ function initApp() {
     });
   }
 
-  // Setup Theme Toggle
+  // Setup Theme Toggle with localStorage persistence
+  try {
+    var savedTheme = localStorage.getItem('DEFECT_APP_THEME');
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+  } catch (eTheme) {}
+
   var themeToggleBtn = document.getElementById('theme-toggle-btn');
   if (themeToggleBtn) {
     themeToggleBtn.addEventListener('click', function() {
       var currentTheme = document.documentElement.getAttribute('data-theme');
       var newTheme = currentTheme === 'light' ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', newTheme);
+      try {
+        localStorage.setItem('DEFECT_APP_THEME', newTheme);
+      } catch (eThemeSave) {}
+      if (window.mainPanel && window.mainPanel.activeTab === 'chart') {
+        window.mainPanel.renderChart();
+      }
+      if (window.dataStore) {
+        window.dataStore.updateSyncBadgeOnly();
+      }
     });
   }
 
@@ -123,80 +133,28 @@ if (document.readyState === 'loading') {
   initApp();
 }
 
-async function loadDefaultDatasetAsync() {
-  var isFileProtocol = (window.location.protocol === 'file:');
-
-  // === HTTP mode: fetch directly from /api/dataset endpoint ===
-  if (!isFileProtocol) {
-    try {
-      var resApi = await fetch('/api/dataset?t=' + Date.now(), { cache: 'no-store' });
-      if (resApi.ok) {
-        var recordsApi = await resApi.json();
-        if (Array.isArray(recordsApi) && recordsApi.length > 0) {
-          console.log('[APP] /api/dataset loaded ' + recordsApi.length + ' records');
-          window.dataStore.setRecords(recordsApi, 'DefectDetails.xls', true);
-          return;
-        }
-      }
-    } catch (errApi) {
-      console.warn('[APP] /api/dataset fetch failed:', errApi.message);
-    }
-
-    try {
-      var resStatic = await fetch('data/defect_details.json?t=' + Date.now(), { cache: 'no-store' });
-      if (resStatic.ok) {
-        var recordsStatic = await resStatic.json();
-        if (Array.isArray(recordsStatic) && recordsStatic.length > 0) {
-          console.log('[APP] Static JSON fetch loaded ' + recordsStatic.length + ' records');
-          window.dataStore.setRecords(recordsStatic, 'DefectDetails.xls', true);
-          return;
-        }
-      }
-    } catch (errStatic) {}
-  }
-
-  // === Polling check for global dataset scripts (handles network share SMB loading delay) ===
-  for (var attempt = 0; attempt < 25; attempt++) {
-    var globalSource = window.SHARED_DEFECT_DATA;
-    if (globalSource && Array.isArray(globalSource) && globalSource.length > 0) {
-      console.log('[APP] Loaded global dataset on attempt ' + attempt + ': ' + globalSource.length + ' records');
-      window.dataStore.setRecords(globalSource, 'DefectDetails.xls', true);
-      return;
-    }
-    await new Promise(function(resolve) { setTimeout(resolve, 200); });
-  }
-
-  // === Fallback file:// mode: dynamically inject <script> to load data ===
-  console.log('[APP] Loading data/defect_details.js via dynamic script injection...');
-  return new Promise(function(resolve) {
-    var script = document.createElement('script');
-    script.src = 'data/defect_details.js';
-    script.onload = function() {
-      var source = window.SHARED_DEFECT_DATA || window.INITIAL_DEFECT_DATA;
-      if (source && Array.isArray(source) && source.length > 0) {
-        console.log('[APP] Dynamic script loaded ' + source.length + ' records');
-        window.dataStore.setRecords(source, 'DefectDetails.xls', true);
-      }
-      resolve();
-    };
-    script.onerror = function() {
-      console.warn('[APP] Dynamic script load failed');
-      resolve();
-    };
-    document.body.appendChild(script);
-  });
-}
-
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
 
+  // Clear input value so selecting the same file again triggers change event
+  e.target.value = '';
+
+  if (window.mainPanel && typeof window.mainPanel.showToast === 'function') {
+    window.mainPanel.showToast(`⏳ Reading and merging ${file.name}...`);
+  }
+
   const reader = new FileReader();
 
-  if (file.name.endsWith('.json')) {
+  if (file.name.toLowerCase().endsWith('.json')) {
     reader.onload = async (event) => {
       try {
         const records = JSON.parse(event.target.result);
+        if (!Array.isArray(records) || records.length === 0) {
+          alert('No valid records found in JSON file.');
+          return;
+        }
+
         const result = await window.dataStore.mergeRecords(records, file.name);
         
         let syncMsg = result.published 
@@ -225,17 +183,21 @@ async function handleFileUpload(e) {
         const worksheet = workbook.Sheets[firstSheetName];
         
         const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (!rawRows || rawRows.length === 0) {
+          alert('The uploaded spreadsheet is empty.');
+          return;
+        }
         
         let headerRowIndex = 0;
-        for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
-          const rowStr = (rawRows[i] || []).join(' ');
-          if (rowStr.includes('Parent Part No')) {
+        for (let i = 0; i < Math.min(rawRows.length, 25); i++) {
+          const rowStr = (rawRows[i] || []).join(' ').toLowerCase();
+          if (rowStr.includes('parent part no') || rowStr.includes('parentpartno') || rowStr.includes('serial no') || rowStr.includes('part number')) {
             headerRowIndex = i;
             break;
           }
         }
 
-        const headers = rawRows[headerRowIndex].map(h => String(h).trim());
+        const headers = (rawRows[headerRowIndex] || []).map(h => String(h || '').trim());
         const records = [];
 
         for (let i = headerRowIndex + 1; i < rawRows.length; i++) {
@@ -244,10 +206,12 @@ async function handleFileUpload(e) {
 
           const rec = {};
           headers.forEach((h, colIdx) => {
-            rec[h] = row[colIdx];
+            if (h) rec[h] = row[colIdx];
           });
 
-          if (rec['Parent Part No.']) {
+          // Check if row has any meaningful content
+          const hasContent = Object.values(rec).some(v => v !== undefined && v !== null && String(v).trim() !== '');
+          if (hasContent) {
             records.push(rec);
           }
         }
@@ -278,3 +242,5 @@ async function handleFileUpload(e) {
     reader.readAsArrayBuffer(file);
   }
 }
+
+window.handleFileUpload = handleFileUpload;

@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   
   <!-- CSS -->
-  <link rel="stylesheet" href="css/styles.css?v=11.0">
+  <link rel="stylesheet" href="css/styles.css?v=12.0">
   
   <!-- Local Offline JS Libraries -->
   <script src="lib/lucide.min.js"></script>
@@ -102,6 +102,9 @@
           <div class="tree-actions">
             <button class="icon-btn" onclick="window.dataStore.clearAllFilters()" title="Clear All Filters">
               <i data-lucide="filter-x"></i>
+            </button>
+            <button class="icon-btn" onclick="window.dataStore.clearTreeSelection()" title="Clear Tree Selection">
+              <i data-lucide="check-square"></i>
             </button>
             <button class="icon-btn" onclick="window.treeView.expandAll()" title="Expand All">
               <i data-lucide="chevrons-down"></i>
@@ -193,9 +196,10 @@
           <i data-lucide="table"></i> Detailed Defect Records
         </button>
         <button class="workspace-tab-btn" id="tab-btn-chart" onclick="window.mainPanel.switchTab('chart')">
-          <i data-lucide="line-chart"></i> Timeline Trend Chart
+          <i data-lucide="line-chart"></i> Timeline &amp; Pareto Charts
         </button>
         <div id="workspace-records-counter" class="workspace-records-counter"></div>
+        <div id="tabbar-solution-pills" class="solution-pills-group" style="margin-left: auto;"></div>
       </nav>
 
       <!-- Tab Content 1: Defect & Failure Comments Feed -->
@@ -269,7 +273,7 @@
         </section>
       </div>
 
-      <!-- Tab Content 3: Interactive Defect Timeline Trend Chart -->
+      <!-- Tab Content 3: Interactive Defect Timeline & Pareto Trend Charts -->
       <div id="tab-content-chart" class="workspace-tab-content">
         <section class="chart-section">
           <div class="chart-header-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
@@ -280,23 +284,36 @@
               <p id="chart-subheading" style="font-size: 0.78rem; color: var(--text-muted); margin: 3px 0 0 0;">Defect volume occurrences over time for selected category</p>
             </div>
             
-            <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+              <!-- View Mode Toggle: Timeline vs Pareto -->
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">View:</span>
+                <div class="metric-toggle-btn-group" id="chart-view-toggle-group">
+                  <button class="btn btn-sm btn-metric-toggle active" id="chart-view-btn-timeline" onclick="window.mainPanel.setChartViewMode('timeline')" title="Display defect volume occurrences over time">
+                    <i data-lucide="line-chart"></i> Timeline
+                  </button>
+                  <button class="btn btn-sm btn-metric-toggle" id="chart-view-btn-pareto" onclick="window.mainPanel.setChartViewMode('pareto')" title="Display 80/20 Pareto defect analysis with cumulative percentage curve">
+                    <i data-lucide="bar-chart-2"></i> Pareto (80/20)
+                  </button>
+                </div>
+              </div>
+
               <!-- Chart Metric Toggle (Defect Qty vs Unique SNs) -->
               <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Metric:</span>
                 <div class="metric-toggle-btn-group" id="chart-metric-toggle-group">
-                  <button class="btn btn-sm btn-metric-toggle active" id="chart-metric-btn-defects" onclick="window.mainPanel.setChartMetric('defects')" title="Plot total defect occurrences &amp; quantity over time">
+                  <button class="btn btn-sm btn-metric-toggle active" id="chart-metric-btn-defects" onclick="window.mainPanel.setChartMetric('defects')" title="Plot total defect occurrences &amp; quantity">
                     <i data-lucide="hash"></i> Defect Qty
                   </button>
-                  <button class="btn btn-sm btn-metric-toggle" id="chart-metric-btn-uniquesn" onclick="window.mainPanel.setChartMetric('uniqueSN')" title="Plot count of unique board serial numbers (SNs) affected over time">
+                  <button class="btn btn-sm btn-metric-toggle" id="chart-metric-btn-uniquesn" onclick="window.mainPanel.setChartMetric('uniqueSN')" title="Plot count of unique board serial numbers (SNs) affected">
                     <i data-lucide="cpu"></i> Unique SNs
                   </button>
                 </div>
               </div>
 
-              <!-- Time Grouping -->
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Time Grouping:</span>
+              <!-- Time Grouping (Visible in Timeline mode) -->
+              <div id="chart-time-grouping-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Grouping:</span>
                 <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
                   <button class="btn btn-sm btn-granularity active" id="gran-btn-auto" onclick="window.mainPanel.setChartGranularity('auto')">Auto</button>
                   <button class="btn btn-sm btn-granularity" id="gran-btn-daily" onclick="window.mainPanel.setChartGranularity('daily')">Daily</button>
@@ -304,10 +321,31 @@
                   <button class="btn btn-sm btn-granularity" id="gran-btn-monthly" onclick="window.mainPanel.setChartGranularity('monthly')">Monthly</button>
                 </div>
               </div>
+
+              <!-- Pareto Dimension Grouping (Visible in Pareto mode) -->
+              <div id="chart-pareto-grouping-wrapper" style="display: none; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Group By:</span>
+                <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
+                  <button class="btn btn-sm btn-granularity active" id="pareto-grp-defect" onclick="window.mainPanel.setParetoGrouping('defectDescription')">Defect</button>
+                  <button class="btn btn-sm btn-granularity" id="pareto-grp-refdes" onclick="window.mainPanel.setParetoGrouping('refDes')">Ref Des</button>
+                  <button class="btn btn-sm btn-granularity" id="pareto-grp-process" onclick="window.mainPanel.setParetoGrouping('processRecorded')">Process</button>
+                  <button class="btn btn-sm btn-granularity" id="pareto-grp-part" onclick="window.mainPanel.setParetoGrouping('parentPartNo')">Part No</button>
+                </div>
+              </div>
+
+              <!-- Chart Export Actions -->
+              <div class="chart-export-btn-group" style="display: flex; align-items: center; gap: 0.35rem; border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
+                <button class="btn btn-sm" id="chart-export-copy-btn" onclick="window.mainPanel.copyChartClipboard()" title="Copy chart image to system clipboard (for PowerPoint / Word / Teams)">
+                  <i data-lucide="copy"></i> Copy
+                </button>
+                <button class="btn btn-sm" id="chart-export-png-btn" onclick="window.mainPanel.exportChartPNG()" title="Download high-resolution chart image (PNG)">
+                  <i data-lucide="download"></i> PNG
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="chart-canvas-wrapper" id="chart-canvas-wrapper" style="position: relative; height: 480px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); padding: 0; box-sizing: border-box; overflow: hidden;">
+          <div class="chart-canvas-wrapper" id="chart-canvas-wrapper" style="position: relative; height: 560px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); padding: 0; box-sizing: border-box; overflow: hidden;">
             <canvas id="timeline-chart-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
             <div id="chart-tooltip" class="chart-tooltip-popup"></div>
           </div>
@@ -483,15 +521,18 @@
     <div class="loader-card">
       <div class="loader-spinner"></div>
       <div class="loader-title">Benchmark Defect Analytics</div>
-      <div class="loader-subtitle">Loading defect database &amp; analytics...</div>
+      <div class="loader-subtitle" id="loader-status-text">Loading defect database &amp; analytics...</div>
+      <div class="loader-progress-bar" id="loader-progress-bar" style="display: none; width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 14px; overflow: hidden;">
+        <div id="loader-progress-fill" style="width: 0%; height: 100%; background: #38bdf8; transition: width 0.15s ease;"></div>
+      </div>
     </div>
   </div>
 
   <!-- Scripts -->
-  <script id="fix-annotations-script" src="data/fix_annotations.js?v=11.0"></script>
-  <script src="js/dataStore.js?v=11.0"></script>
-  <script src="js/treeView.js?v=11.0"></script>
-  <script src="js/mainPanel.js?v=11.0"></script>
-  <script src="js/app.js?v=11.0"></script>
+  <script id="fix-annotations-script" src="data/fix_annotations.js?v=11.2"></script>
+  <script src="js/dataStore.js?v=11.2"></script>
+  <script src="js/treeView.js?v=11.2"></script>
+  <script src="js/mainPanel.js?v=11.2"></script>
+  <script src="js/app.js?v=11.2"></script>
 </body>
 </html>

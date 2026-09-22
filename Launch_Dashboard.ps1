@@ -76,10 +76,20 @@ function Close-Splash() {
     }
 }
 
-# 2. KILL ANY PREVIOUS SERVER PROCESSES BEFORE COPYING OR LAUNCHING (ENSURES LATEST EXECUTABLE & SYNC CONFIG)
+$serverAlreadyRunning = $false
 try {
-    Get-Process -Name "server" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    $res = Invoke-WebRequest 'http://127.0.0.1:8080/api/status' -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
+    if ($res.StatusCode -eq 200) {
+        $serverAlreadyRunning = $true
+    }
 } catch {}
+
+if (-not $serverAlreadyRunning) {
+    try {
+        Get-Process -Name "server" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*server.py*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    } catch {}
+}
 
 # 3. PREPARE EXECUTION ENVIRONMENT
 Update-SplashStatus "Starting local data engine..."
@@ -108,22 +118,30 @@ if ($isNetworkShare) {
             New-Item -ItemType Directory -Path $LocalAppDir -Force | Out-Null
         }
 
+        # Clean up any legacy server.exe so Windows Defender never scans or alerts on it
         $localServerExe = Join-Path $LocalAppDir "server.exe"
-        $shareServerExe = Join-Path $ShareDir "server.exe"
-
-        if (Test-Path $shareServerExe) {
-            if (-not (Test-Path $localServerExe) -or ((Get-Item $shareServerExe).LastWriteTime -gt (Get-Item $localServerExe).LastWriteTime)) {
-                Copy-Item -Path $shareServerExe -Destination $localServerExe -Force -ErrorAction SilentlyContinue
-            }
+        if (Test-Path $localServerExe) {
+            Remove-Item $localServerExe -Force -ErrorAction SilentlyContinue
         }
 
-        # Sync web asset folders and internal binaries quickly (R:1 / W:1 prevents any indefinite retry hangs)
-        foreach ($folder in @("assets", "css", "js", "lib", "_internal")) {
+        # Sync web asset folders and portable python runtime (R:1 / W:1 prevents any indefinite retry hangs)
+        foreach ($folder in @("assets", "css", "js", "lib", "runtime")) {
             $src = Join-Path $ShareDir $folder
             $dst = Join-Path $LocalAppDir $folder
             if (Test-Path $src) {
                 if (-not (Test-Path $dst)) { New-Item -ItemType Directory -Path $dst -Force | Out-Null }
-                robocopy "$src" "$dst" /XO /FFT /NDL /NFL /NJH /NJS /nc /ns /np /R:1 /W:1 | Out-Null
+                robocopy "$src" "$dst" /E /XO /FFT /NDL /NFL /NJH /NJS /nc /ns /np /R:1 /W:1 | Out-Null
+            }
+        }
+
+        # Sync compressed dataset and annotation files locally so reading takes 0.05s from SSD
+        $srcData = Join-Path $ShareDir "data"
+        $dstData = Join-Path $LocalAppDir "data"
+        if (Test-Path $srcData) {
+            if (-not (Test-Path $dstData)) { New-Item -ItemType Directory -Path $dstData -Force | Out-Null }
+            robocopy "$srcData" "$dstData" "defect_details.json.gz" "fix_annotations.*" /XO /FFT /NDL /NFL /NJH /NJS /nc /ns /np /R:1 /W:1 | Out-Null
+            if (-not (Test-Path (Join-Path $dstData "defect_details.json.gz")) -and (Test-Path (Join-Path $srcData "defect_details.json"))) {
+                robocopy "$srcData" "$dstData" "defect_details.json" /XO /FFT /NDL /NFL /NJH /NJS /nc /ns /np /R:1 /W:1 | Out-Null
             }
         }
 
@@ -158,26 +176,42 @@ if ($isNetworkShare) {
 # 5. START SERVER PROCESS
 Update-SplashStatus "Starting local data engine..."
 
-# Find python if server.exe is not available
-$pythonExe = "python.exe"
-if (Test-Path "C:\Python314\pythonw.exe") {
-    $pythonExe = "C:\Python314\pythonw.exe"
-} elseif (Test-Path "C:\Python314\python.exe") {
-    $pythonExe = "C:\Python314\python.exe"
-} elseif (Get-Command pythonw -ErrorAction SilentlyContinue) {
-    $pythonExe = "pythonw.exe"
-} elseif (Get-Command python -ErrorAction SilentlyContinue) {
-    $pythonExe = "python.exe"
+# Find pythonw / python: prioritize portable signed runtime, fallback to system Python
+$pythonExe = $null
+$candidatePythons = @(
+    (Join-Path $targetDir "runtime\pythonw.exe"),
+    (Join-Path $ShareDir "runtime\pythonw.exe"),
+    (Join-Path $targetDir "runtime\python.exe"),
+    (Join-Path $ShareDir "runtime\python.exe"),
+    "C:\Python314\pythonw.exe",
+    "C:\Python314\python.exe"
+)
+
+foreach ($c in $candidatePythons) {
+    if (Test-Path $c) {
+        $pythonExe = $c
+        break
+    }
 }
 
-if (Test-Path $targetExe) {
-    Start-Process -FilePath $targetExe -WorkingDirectory $targetDir -WindowStyle Hidden
-} elseif (Test-Path (Join-Path $targetDir "server.py")) {
-    Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $targetDir -WindowStyle Hidden
-} elseif (Test-Path (Join-Path $ShareDir "server.exe")) {
-    Start-Process -FilePath (Join-Path $ShareDir "server.exe") -WorkingDirectory $ShareDir -WindowStyle Hidden
-} elseif (Test-Path (Join-Path $ShareDir "server.py")) {
-    Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $ShareDir -WindowStyle Hidden
+if (-not $pythonExe) {
+    if (Get-Command pythonw -ErrorAction SilentlyContinue) {
+        $pythonExe = "pythonw.exe"
+    } elseif (Get-Command python -ErrorAction SilentlyContinue) {
+        $pythonExe = "python.exe"
+    }
+}
+
+if (-not $serverAlreadyRunning) {
+    if ($pythonExe -and (Test-Path (Join-Path $targetDir "server.py"))) {
+        Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $targetDir -WindowStyle Hidden
+    } elseif ($pythonExe -and (Test-Path (Join-Path $ShareDir "server.py"))) {
+        Start-Process -FilePath $pythonExe -ArgumentList "-u server.py" -WorkingDirectory $ShareDir -WindowStyle Hidden
+    } elseif (Test-Path (Join-Path $targetDir "server.exe")) {
+        Start-Process -FilePath (Join-Path $targetDir "server.exe") -WorkingDirectory $targetDir -WindowStyle Hidden
+    } elseif (Test-Path (Join-Path $ShareDir "server.exe")) {
+        Start-Process -FilePath (Join-Path $ShareDir "server.exe") -WorkingDirectory $ShareDir -WindowStyle Hidden
+    }
 }
 
 # 6. FAST POLLING LOOP (100ms intervals)

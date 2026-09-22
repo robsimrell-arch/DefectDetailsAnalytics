@@ -14,5 +14,13 @@ _internal/
 *.lnk
 !server.exe
 
-# Temporary files
+# Temporary and local backup files
 _fix_vbs.py
+*.bak
+*.gz
+runtime/
+data/backups/
+data/fix_annotations__.txt
+data/server_config.js
+data/server_config.json
+data/sharepoint_config.json
