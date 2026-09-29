@@ -111,7 +111,7 @@ function initApp() {
       try {
         localStorage.setItem('DEFECT_APP_THEME', newTheme);
       } catch (eThemeSave) {}
-      if (window.mainPanel && window.mainPanel.activeTab === 'chart') {
+      if (window.mainPanel && (window.mainPanel.activeTab === 'timeline' || window.mainPanel.activeTab === 'pareto' || window.mainPanel.activeTab === 'chart')) {
         window.mainPanel.renderChart();
       }
       if (window.dataStore) {
@@ -159,7 +159,7 @@ async function handleFileUpload(e) {
         
         let syncMsg = result.published 
           ? '⚡ Published to central server! All connected machines will update within 2 seconds.'
-          : 'ℹ️ Saved to local browser state. To sync across all network PCs, click the "Publish Updates" button in the top navigation bar.';
+          : 'ℹ️ Saved to local browser state. Updates will sync automatically once reconnected to the central server.';
 
         alert(
           `✅ Dataset Merge & Deduplication Complete!\n\n` +
@@ -221,7 +221,7 @@ async function handleFileUpload(e) {
           
           let syncMsg = result.published 
             ? '⚡ Published to central server! All connected machines will update within 2 seconds.'
-            : 'ℹ️ Saved to local browser state. To sync across all network PCs, click the "Publish Updates" button in the top navigation bar.';
+            : 'ℹ️ Saved to local browser state. Updates will sync automatically once reconnected to the central server.';
 
           alert(
             `✅ Dataset Merge & Deduplication Complete!\n\n` +

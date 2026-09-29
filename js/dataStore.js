@@ -10,7 +10,7 @@ class DataStore {
     this.treeNodeMap = new Map();
     this.lastSelectedKey = null;
     this.searchQuery = '';
-    this.searchTarget = 'all'; // 'all' | 'refDes' | 'serialNo' | 'failureComments' | 'comments' | 'parts'
+    this.searchTarget = 'all'; // 'all' | 'refDes' | 'serialNo' | 'defectDescription' | 'process' | 'failureComments' | 'comments' | 'parts'
     this.fixFilter = 'all'; // 'all' | 'Yes' | 'No' | 'Pending'
     this.datePreset = 'all'; // 'all' | '7d' | '30d' | '90d' | 'custom'
     this.startDate = '';
@@ -1995,12 +1995,16 @@ class DataStore {
       str = (rec.refDes || '').toLowerCase();
     } else if (target === 'serialNo') {
       str = (rec.serialNo || '').toLowerCase();
+    } else if (target === 'defectDescription') {
+      str = (rec.defectDescription || '').toLowerCase();
+    } else if (target === 'process') {
+      str = (rec.processRecorded || '').toLowerCase();
     } else if (target === 'failureComments') {
       str = `${rec.failureComment || ''} ${rec.failureDescription || ''}`.toLowerCase();
     } else if (target === 'comments') {
       str = `${rec.defectComment || ''} ${rec.failureComment || ''} ${rec.repairComment || ''} ${rec.fixComment || ''} ${rec.failureDescription || ''} ${rec.repairDescription || ''}`.toLowerCase();
     } else if (target === 'parts') {
-      str = `${rec.parentPartNo || ''} ${rec.customer || ''} ${rec.processRecorded || ''}`.toLowerCase();
+      str = `${rec.parentPartNo || ''} ${rec.customer || ''}`.toLowerCase();
     } else {
       str = rec._searchStr || '';
     }

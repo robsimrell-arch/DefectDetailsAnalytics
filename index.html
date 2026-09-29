@@ -43,10 +43,6 @@
       <!-- Live Server Connection Status Badge -->
       <div id="live-sync-badge" class="sync-status-badge"></div>
 
-      <!-- Publish Updates Button -->
-      <button class="btn" id="header-publish-btn" onclick="window.dataStore.publishAllUpdates()" style="background: rgba(2, 132, 199, 0.15); border-color: rgba(2, 132, 199, 0.4); color: #38bdf8;" title="Save all solution statuses, memos, and dataset updates to the shared drive file">
-        <i data-lucide="share-2"></i> Publish Updates
-      </button>
 
       <!-- Theme Toggle -->
       <button class="btn" id="theme-toggle-btn" title="Toggle Dark/Light Mode">
@@ -166,6 +162,8 @@
               <option value="all">All Fields (Default)</option>
               <option value="refDes">Ref Des Only</option>
               <option value="serialNo">Serial Number Only</option>
+              <option value="defectDescription">Defect Description</option>
+              <option value="process">Process</option>
               <option value="failureComments">Failure Comments</option>
               <option value="comments">Defect Comments</option>
               <option value="parts">Part Numbers</option>
@@ -187,23 +185,32 @@
         <!-- Rendered dynamically by mainPanel.js -->
       </nav>
 
-      <!-- Main Workspace View Navigation Tabs -->
+      <!-- Main Workspace View Navigation Tabs (Row 1: Tabs on Left, Solution Metrics on Right) -->
       <nav class="main-workspace-tabs">
-        <button class="workspace-tab-btn active" id="tab-btn-comments" onclick="window.mainPanel.switchTab('comments')">
-          <i data-lucide="message-square"></i> Failure & Defect Comments Feed
-        </button>
-        <button class="workspace-tab-btn" id="tab-btn-records" onclick="window.mainPanel.switchTab('records')">
-          <i data-lucide="table"></i> Detailed Defect Records
-        </button>
-        <button class="workspace-tab-btn" id="tab-btn-chart" onclick="window.mainPanel.switchTab('chart')">
-          <i data-lucide="line-chart"></i> Timeline &amp; Pareto Charts
-        </button>
-        <div id="workspace-records-counter" class="workspace-records-counter"></div>
+        <div class="workspace-tab-group">
+          <button class="workspace-tab-btn" id="tab-btn-comments" onclick="window.mainPanel.switchTab('comments')">
+            <i data-lucide="message-square"></i> Failure &amp; Defect Comments Feed
+          </button>
+          <button class="workspace-tab-btn" id="tab-btn-records" onclick="window.mainPanel.switchTab('records')">
+            <i data-lucide="table"></i> Detailed Defect Records
+          </button>
+          <button class="workspace-tab-btn" id="tab-btn-timeline" onclick="window.mainPanel.switchTab('timeline')">
+            <i data-lucide="line-chart"></i> Timeline Trend
+          </button>
+          <button class="workspace-tab-btn active" id="tab-btn-pareto" onclick="window.mainPanel.switchTab('pareto')">
+            <i data-lucide="bar-chart-2"></i> Pareto Chart
+          </button>
+        </div>
         <div id="tabbar-solution-pills" class="solution-pills-group" style="margin-left: auto;"></div>
       </nav>
 
+      <!-- Filter Quantity / Records Counter Subbar (Row 2: Under Tabs on Left) -->
+      <div class="workspace-metrics-subbar">
+        <div id="workspace-records-counter" class="workspace-records-counter"></div>
+      </div>
+
       <!-- Tab Content 1: Defect & Failure Comments Feed -->
-      <div id="tab-content-comments" class="workspace-tab-content active">
+      <div id="tab-content-comments" class="workspace-tab-content">
         <section class="comments-section">
           <div class="section-header">
             <h2 id="comments-title" class="section-title">
@@ -273,46 +280,33 @@
         </section>
       </div>
 
-      <!-- Tab Content 3: Interactive Defect Timeline & Pareto Trend Charts -->
-      <div id="tab-content-chart" class="workspace-tab-content">
+      <!-- Tab Content 3: Interactive Defect Timeline Trend Chart -->
+      <div id="tab-content-timeline" class="workspace-tab-content">
         <section class="chart-section">
           <div class="chart-header-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
             <div>
-              <h2 id="chart-heading" class="section-title" style="font-size: 1.05rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+              <h2 id="timeline-chart-heading" class="section-title" style="font-size: 1.05rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
                 <i data-lucide="line-chart" style="width: 18px; height: 18px; color: var(--accent-blue);"></i> Defect Quantity Timeline Trend
               </h2>
-              <p id="chart-subheading" style="font-size: 0.78rem; color: var(--text-muted); margin: 3px 0 0 0;">Defect volume occurrences over time for selected category</p>
+              <p id="timeline-chart-subheading" style="font-size: 0.78rem; color: var(--text-muted); margin: 3px 0 0 0;">Defect volume occurrences over time for selected category</p>
             </div>
             
             <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
-              <!-- View Mode Toggle: Timeline vs Pareto -->
-              <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">View:</span>
-                <div class="metric-toggle-btn-group" id="chart-view-toggle-group">
-                  <button class="btn btn-sm btn-metric-toggle active" id="chart-view-btn-timeline" onclick="window.mainPanel.setChartViewMode('timeline')" title="Display defect volume occurrences over time">
-                    <i data-lucide="line-chart"></i> Timeline
-                  </button>
-                  <button class="btn btn-sm btn-metric-toggle" id="chart-view-btn-pareto" onclick="window.mainPanel.setChartViewMode('pareto')" title="Display 80/20 Pareto defect analysis with cumulative percentage curve">
-                    <i data-lucide="bar-chart-2"></i> Pareto (80/20)
-                  </button>
-                </div>
-              </div>
-
               <!-- Chart Metric Toggle (Defect Qty vs Unique SNs) -->
               <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Metric:</span>
-                <div class="metric-toggle-btn-group" id="chart-metric-toggle-group">
-                  <button class="btn btn-sm btn-metric-toggle active" id="chart-metric-btn-defects" onclick="window.mainPanel.setChartMetric('defects')" title="Plot total defect occurrences &amp; quantity">
+                <div class="metric-toggle-btn-group" id="timeline-metric-toggle-group">
+                  <button class="btn btn-sm btn-metric-toggle active" id="timeline-metric-btn-defects" onclick="window.mainPanel.setTimelineMetric('defects')" title="Plot total defect occurrences &amp; quantity">
                     <i data-lucide="hash"></i> Defect Qty
                   </button>
-                  <button class="btn btn-sm btn-metric-toggle" id="chart-metric-btn-uniquesn" onclick="window.mainPanel.setChartMetric('uniqueSN')" title="Plot count of unique board serial numbers (SNs) affected">
+                  <button class="btn btn-sm btn-metric-toggle" id="timeline-metric-btn-uniquesn" onclick="window.mainPanel.setTimelineMetric('uniqueSN')" title="Plot count of unique board serial numbers (SNs) affected">
                     <i data-lucide="cpu"></i> Unique SNs
                   </button>
                 </div>
               </div>
 
-              <!-- Time Grouping (Visible in Timeline mode) -->
-              <div id="chart-time-grouping-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
+              <!-- Time Grouping -->
+              <div id="timeline-time-grouping-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Grouping:</span>
                 <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
                   <button class="btn btn-sm btn-granularity active" id="gran-btn-auto" onclick="window.mainPanel.setChartGranularity('auto')">Auto</button>
@@ -322,8 +316,54 @@
                 </div>
               </div>
 
-              <!-- Pareto Dimension Grouping (Visible in Pareto mode) -->
-              <div id="chart-pareto-grouping-wrapper" style="display: none; align-items: center; gap: 0.5rem;">
+              <!-- Chart Export Actions -->
+              <div class="chart-export-btn-group" style="display: flex; align-items: center; gap: 0.35rem; border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
+                <button class="btn btn-sm" id="timeline-export-copy-btn" onclick="window.mainPanel.copyChartClipboard('timeline')" title="Copy chart image to system clipboard (for PowerPoint / Word / Teams)">
+                  <i data-lucide="copy"></i> Copy
+                </button>
+                <button class="btn btn-sm" id="timeline-export-png-btn" onclick="window.mainPanel.exportChartPNG('timeline')" title="Download high-resolution chart image (PNG)">
+                  <i data-lucide="download"></i> PNG
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-canvas-wrapper" id="timeline-canvas-wrapper" style="position: relative; height: 560px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); padding: 0; box-sizing: border-box; overflow: hidden;">
+            <canvas id="timeline-chart-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
+            <div id="timeline-chart-tooltip" class="chart-tooltip-popup"></div>
+          </div>
+
+          <div id="timeline-legend-container" class="chart-legend-bar" style="margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: center;"></div>
+        </section>
+      </div>
+
+      <!-- Tab Content 4: Interactive Pareto 80/20 Analysis Chart -->
+      <div id="tab-content-pareto" class="workspace-tab-content active">
+        <section class="chart-section">
+          <div class="chart-header-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+              <h2 id="pareto-chart-heading" class="section-title" style="font-size: 1.05rem; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="bar-chart-2" style="width: 18px; height: 18px; color: var(--accent-blue);"></i> Pareto 80/20 Defect Analysis
+              </h2>
+              <p id="pareto-chart-subheading" style="font-size: 0.78rem; color: var(--text-muted); margin: 3px 0 0 0;">80/20 cumulative distribution across defect categories</p>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+              <!-- Chart Metric Toggle (Defect Qty vs Unique SNs) -->
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Metric:</span>
+                <div class="metric-toggle-btn-group" id="pareto-metric-toggle-group">
+                  <button class="btn btn-sm btn-metric-toggle" id="pareto-metric-btn-defects" onclick="window.mainPanel.setParetoMetric('defects')" title="Plot total defect occurrences &amp; quantity">
+                    <i data-lucide="hash"></i> Defect Qty
+                  </button>
+                  <button class="btn btn-sm btn-metric-toggle active" id="pareto-metric-btn-uniquesn" onclick="window.mainPanel.setParetoMetric('uniqueSN')" title="Plot count of unique board serial numbers (SNs) affected">
+                    <i data-lucide="cpu"></i> Unique SNs
+                  </button>
+                </div>
+              </div>
+
+              <!-- Pareto Dimension Grouping -->
+              <div id="chart-pareto-grouping-wrapper" style="display: flex; align-items: center; gap: 0.5rem;">
                 <span style="font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">Group By:</span>
                 <div class="granularity-btn-group" style="display: flex; gap: 0.25rem; background: var(--bg-primary); padding: 3px; border-radius: 8px; border: 1px solid var(--border-color);">
                   <button class="btn btn-sm btn-granularity active" id="pareto-grp-defect" onclick="window.mainPanel.setParetoGrouping('defectDescription')">Defect</button>
@@ -335,22 +375,22 @@
 
               <!-- Chart Export Actions -->
               <div class="chart-export-btn-group" style="display: flex; align-items: center; gap: 0.35rem; border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
-                <button class="btn btn-sm" id="chart-export-copy-btn" onclick="window.mainPanel.copyChartClipboard()" title="Copy chart image to system clipboard (for PowerPoint / Word / Teams)">
+                <button class="btn btn-sm" id="pareto-export-copy-btn" onclick="window.mainPanel.copyChartClipboard('pareto')" title="Copy chart image to system clipboard (for PowerPoint / Word / Teams)">
                   <i data-lucide="copy"></i> Copy
                 </button>
-                <button class="btn btn-sm" id="chart-export-png-btn" onclick="window.mainPanel.exportChartPNG()" title="Download high-resolution chart image (PNG)">
+                <button class="btn btn-sm" id="pareto-export-png-btn" onclick="window.mainPanel.exportChartPNG('pareto')" title="Download high-resolution chart image (PNG)">
                   <i data-lucide="download"></i> PNG
                 </button>
               </div>
             </div>
           </div>
 
-          <div class="chart-canvas-wrapper" id="chart-canvas-wrapper" style="position: relative; height: 560px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); padding: 0; box-sizing: border-box; overflow: hidden;">
-            <canvas id="timeline-chart-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
-            <div id="chart-tooltip" class="chart-tooltip-popup"></div>
+          <div class="chart-canvas-wrapper" id="pareto-canvas-wrapper" style="position: relative; height: 560px; width: 100%; border-radius: 8px; background: rgba(0,0,0,0.15); border: 1px solid var(--border-color); padding: 0; box-sizing: border-box; overflow: hidden;">
+            <canvas id="pareto-chart-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
+            <div id="pareto-chart-tooltip" class="chart-tooltip-popup"></div>
           </div>
 
-          <div id="chart-legend-container" class="chart-legend-bar" style="margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: center;"></div>
+          <div id="pareto-legend-container" class="chart-legend-bar" style="margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: center;"></div>
         </section>
       </div>
 

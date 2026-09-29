@@ -6,21 +6,27 @@ class MainPanel {
     this.tableFilter = '';
     this.currentPage = 1;
     this.pageSize = 50;
-    this.activeTab = 'comments'; // Default active tab: 'comments' | 'records'
+    this.activeTab = 'pareto'; // Default active tab on load: 'pareto'
     this.sortColumn = 'faDate'; // Active sorting column
     this.sortDirection = 'desc'; // Active sorting direction: 'asc' | 'desc'
     this.commentDebounceTimer = null;
 
-    // Chart Metric Mode: 'defects' (Defect Quantity) | 'uniqueSN' (Unique Serial Numbers)
-    let savedChartMetric = 'defects';
+    // Timeline Chart Metric Mode: 'defects' (Defect Quantity) | 'uniqueSN' (Unique Serial Numbers)
+    let savedTimelineMetric = 'defects';
     try {
-      savedChartMetric = localStorage.getItem('DEFECT_APP_CHART_METRIC') || 'defects';
+      savedTimelineMetric = localStorage.getItem('DEFECT_APP_TIMELINE_METRIC') || localStorage.getItem('DEFECT_APP_CHART_METRIC') || 'defects';
     } catch (e) {}
-    this.chartMetric = savedChartMetric === 'uniqueSN' ? 'uniqueSN' : 'defects';
+    this.timelineMetric = savedTimelineMetric === 'uniqueSN' ? 'uniqueSN' : 'defects';
 
-    // Chart View Mode: 'timeline' | 'pareto'
-    this.chartViewMode = 'timeline';
-    // Pareto Grouping Dimension: 'defectDescription' | 'refDes' | 'processRecorded' | 'parentPartNo'
+    // Pareto Chart Metric Mode: 'uniqueSN' (Unique Serial Numbers) by default | 'defects' (Defect Quantity)
+    let savedParetoMetric = 'uniqueSN';
+    try {
+      savedParetoMetric = localStorage.getItem('DEFECT_APP_PARETO_METRIC') || 'uniqueSN';
+    } catch (e) {}
+    this.paretoMetric = savedParetoMetric === 'defects' ? 'defects' : 'uniqueSN';
+
+    // Chart Granularity & Pareto Grouping Dimension
+    this.chartGranularity = 'auto';
     this.paretoGrouping = 'defectDescription';
 
     if (window.dataStore) {
@@ -94,29 +100,56 @@ class MainPanel {
   get tableSearchInput() { return document.getElementById('table-search'); }
   get tableSearchClear() { return document.getElementById('table-search-clear'); }
 
+  get chartMetric() {
+    return this.activeTab === 'pareto' ? this.paretoMetric : this.timelineMetric;
+  }
+  set chartMetric(val) {
+    if (this.activeTab === 'pareto') {
+      this.paretoMetric = val;
+    } else {
+      this.timelineMetric = val;
+    }
+  }
+
+  get chartViewMode() {
+    return this.activeTab === 'pareto' ? 'pareto' : 'timeline';
+  }
+  set chartViewMode(val) {
+    if (val === 'pareto' || val === 'timeline') {
+      this.switchTab(val);
+    }
+  }
+
   switchTab(tabName) {
-    if (tabName !== 'comments' && tabName !== 'records' && tabName !== 'chart') return;
+    if (tabName === 'chart') tabName = 'timeline';
+    if (tabName !== 'comments' && tabName !== 'records' && tabName !== 'timeline' && tabName !== 'pareto') return;
     this.activeTab = tabName;
 
     const btnComments = document.getElementById('tab-btn-comments');
     const btnRecords = document.getElementById('tab-btn-records');
-    const btnChart = document.getElementById('tab-btn-chart');
+    const btnTimeline = document.getElementById('tab-btn-timeline');
+    const btnPareto = document.getElementById('tab-btn-pareto');
 
     const contentComments = document.getElementById('tab-content-comments');
     const contentRecords = document.getElementById('tab-content-records');
-    const contentChart = document.getElementById('tab-content-chart');
+    const contentTimeline = document.getElementById('tab-content-timeline');
+    const contentPareto = document.getElementById('tab-content-pareto');
 
     if (btnComments) btnComments.classList.toggle('active', tabName === 'comments');
     if (btnRecords) btnRecords.classList.toggle('active', tabName === 'records');
-    if (btnChart) btnChart.classList.toggle('active', tabName === 'chart');
+    if (btnTimeline) btnTimeline.classList.toggle('active', tabName === 'timeline');
+    if (btnPareto) btnPareto.classList.toggle('active', tabName === 'pareto');
 
     if (contentComments) contentComments.classList.toggle('active', tabName === 'comments');
     if (contentRecords) contentRecords.classList.toggle('active', tabName === 'records');
-    if (contentChart) contentChart.classList.toggle('active', tabName === 'chart');
+    if (contentTimeline) contentTimeline.classList.toggle('active', tabName === 'timeline');
+    if (contentPareto) contentPareto.classList.toggle('active', tabName === 'pareto');
 
-    if (tabName === 'chart') {
-      const records = window.dataStore ? window.dataStore.getActiveRecords() : [];
-      this.renderChart(records);
+    const records = window.dataStore ? window.dataStore.getActiveRecords() : [];
+    if (tabName === 'timeline') {
+      this.renderTimelineChart(records);
+    } else if (tabName === 'pareto') {
+      this.renderParetoChart(records);
     }
     
     if (window.lucide) window.lucide.createIcons();
@@ -297,8 +330,10 @@ class MainPanel {
 
     this.renderComments(selected, records);
     this.renderTable(records);
-    if (this.activeTab === 'chart') {
-      this.renderChart(records);
+    if (this.activeTab === 'timeline' || this.activeTab === 'chart') {
+      this.renderTimelineChart(records);
+    } else if (this.activeTab === 'pareto') {
+      this.renderParetoChart(records);
     }
   }
 
@@ -1212,7 +1247,7 @@ class MainPanel {
 
   renderChart(records) {
     const recs = records || (window.dataStore ? window.dataStore.getActiveRecords() : []);
-    if (this.chartViewMode === 'pareto') {
+    if (this.activeTab === 'pareto') {
       this.renderParetoChart(recs);
     } else {
       this.renderTimelineChart(recs);
@@ -1220,18 +1255,43 @@ class MainPanel {
   }
 
   setChartViewMode(mode) {
-    this.chartViewMode = mode === 'pareto' ? 'pareto' : 'timeline';
-    const btnTimeline = document.getElementById('chart-view-btn-timeline');
-    const btnPareto = document.getElementById('chart-view-btn-pareto');
-    if (btnTimeline) btnTimeline.classList.toggle('active', this.chartViewMode === 'timeline');
-    if (btnPareto) btnPareto.classList.toggle('active', this.chartViewMode === 'pareto');
+    if (mode === 'pareto' || mode === 'timeline') {
+      this.switchTab(mode);
+    }
+  }
 
-    const timeWrap = document.getElementById('chart-time-grouping-wrapper');
-    const paretoWrap = document.getElementById('chart-pareto-grouping-wrapper');
-    if (timeWrap) timeWrap.style.display = this.chartViewMode === 'timeline' ? 'flex' : 'none';
-    if (paretoWrap) paretoWrap.style.display = this.chartViewMode === 'pareto' ? 'flex' : 'none';
+  setTimelineMetric(metric) {
+    this.timelineMetric = metric === 'uniqueSN' ? 'uniqueSN' : 'defects';
+    try {
+      localStorage.setItem('DEFECT_APP_TIMELINE_METRIC', this.timelineMetric);
+    } catch (e) {}
+    const isSN = this.timelineMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('timeline-metric-btn-defects');
+    const btnSN = document.getElementById('timeline-metric-btn-uniquesn');
+    if (btnDefects) btnDefects.classList.toggle('active', !isSN);
+    if (btnSN) btnSN.classList.toggle('active', isSN);
+    this.renderTimelineChart(window.dataStore ? window.dataStore.getActiveRecords() : []);
+  }
 
-    this.renderChart();
+  setParetoMetric(metric) {
+    this.paretoMetric = metric === 'uniqueSN' ? 'uniqueSN' : 'defects';
+    try {
+      localStorage.setItem('DEFECT_APP_PARETO_METRIC', this.paretoMetric);
+    } catch (e) {}
+    const isSN = this.paretoMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('pareto-metric-btn-defects');
+    const btnSN = document.getElementById('pareto-metric-btn-uniquesn');
+    if (btnDefects) btnDefects.classList.toggle('active', !isSN);
+    if (btnSN) btnSN.classList.toggle('active', isSN);
+    this.renderParetoChart(window.dataStore ? window.dataStore.getActiveRecords() : []);
+  }
+
+  setChartMetric(metric) {
+    if (this.activeTab === 'pareto') {
+      this.setParetoMetric(metric);
+    } else {
+      this.setTimelineMetric(metric);
+    }
   }
 
   setParetoGrouping(dimension) {
@@ -1246,7 +1306,7 @@ class MainPanel {
       const btn = document.getElementById(map[dim]);
       if (btn) btn.classList.toggle('active', this.paretoGrouping === dim);
     });
-    this.renderChart();
+    this.renderParetoChart(window.dataStore ? window.dataStore.getActiveRecords() : []);
   }
 
   setChartGranularity(mode) {
@@ -1255,34 +1315,21 @@ class MainPanel {
       const btn = document.getElementById(`gran-btn-${m}`);
       if (btn) btn.classList.toggle('active', this.chartGranularity === m);
     });
-    this.renderChart(window.dataStore.getActiveRecords());
-  }
-
-  setChartMetric(metric) {
-    this.chartMetric = metric === 'uniqueSN' ? 'uniqueSN' : 'defects';
-    try {
-      localStorage.setItem('DEFECT_APP_CHART_METRIC', this.chartMetric);
-    } catch (e) {}
-    const isSN = this.chartMetric === 'uniqueSN';
-    const btnDefects = document.getElementById('chart-metric-btn-defects');
-    const btnSN = document.getElementById('chart-metric-btn-uniquesn');
-    if (btnDefects) btnDefects.classList.toggle('active', !isSN);
-    if (btnSN) btnSN.classList.toggle('active', isSN);
-    this.renderChart(window.dataStore.getActiveRecords());
+    this.renderTimelineChart(window.dataStore ? window.dataStore.getActiveRecords() : []);
   }
 
   renderTimelineChart(records) {
     const canvas = document.getElementById('timeline-chart-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const container = document.getElementById('chart-canvas-wrapper');
-    const legendContainer = document.getElementById('chart-legend-container');
-    const heading = document.getElementById('chart-heading');
-    const subheading = document.getElementById('chart-subheading');
+    const container = document.getElementById('timeline-canvas-wrapper');
+    const legendContainer = document.getElementById('timeline-legend-container');
+    const heading = document.getElementById('timeline-chart-heading');
+    const subheading = document.getElementById('timeline-chart-subheading');
 
-    const isSNMode = this.chartMetric === 'uniqueSN';
-    const btnDefects = document.getElementById('chart-metric-btn-defects');
-    const btnSN = document.getElementById('chart-metric-btn-uniquesn');
+    const isSNMode = this.timelineMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('timeline-metric-btn-defects');
+    const btnSN = document.getElementById('timeline-metric-btn-uniquesn');
     if (btnDefects) btnDefects.classList.toggle('active', !isSNMode);
     if (btnSN) btnSN.classList.toggle('active', isSNMode);
 
@@ -1676,7 +1723,7 @@ class MainPanel {
   }
 
   bindChartHover(container, canvas) {
-    const tooltip = document.getElementById('chart-tooltip');
+    const tooltip = document.getElementById('timeline-chart-tooltip') || document.getElementById('chart-tooltip');
     if (!tooltip || !canvas) return;
 
     canvas.onmousemove = (e) => {
@@ -1696,7 +1743,7 @@ class MainPanel {
 
       if (hit) {
         const b = hit.bucket;
-        const isSN = this.chartMetric === 'uniqueSN';
+        const isSN = this.timelineMetric === 'uniqueSN';
         const breakdownMap = isSN ? (b.subBreakdownSN || {}) : (b.subBreakdown || {});
 
         let subDetails = Object.keys(breakdownMap)
@@ -1749,17 +1796,17 @@ class MainPanel {
   }
 
   renderParetoChart(records) {
-    const canvas = document.getElementById('timeline-chart-canvas');
+    const canvas = document.getElementById('pareto-chart-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const container = document.getElementById('chart-canvas-wrapper');
-    const legendContainer = document.getElementById('chart-legend-container');
-    const heading = document.getElementById('chart-heading');
-    const subheading = document.getElementById('chart-subheading');
+    const container = document.getElementById('pareto-canvas-wrapper');
+    const legendContainer = document.getElementById('pareto-legend-container');
+    const heading = document.getElementById('pareto-chart-heading');
+    const subheading = document.getElementById('pareto-chart-subheading');
 
-    const isSNMode = this.chartMetric === 'uniqueSN';
-    const btnDefects = document.getElementById('chart-metric-btn-defects');
-    const btnSN = document.getElementById('chart-metric-btn-uniquesn');
+    const isSNMode = this.paretoMetric === 'uniqueSN';
+    const btnDefects = document.getElementById('pareto-metric-btn-defects');
+    const btnSN = document.getElementById('pareto-metric-btn-uniquesn');
     if (btnDefects) btnDefects.classList.toggle('active', !isSNMode);
     if (btnSN) btnSN.classList.toggle('active', isSNMode);
 
@@ -2143,7 +2190,7 @@ class MainPanel {
   }
 
   bindParetoHover(container, canvas) {
-    const tooltip = document.getElementById('chart-tooltip');
+    const tooltip = document.getElementById('pareto-chart-tooltip') || document.getElementById('chart-tooltip');
     if (!tooltip || !canvas) return;
 
     canvas.onmousemove = (e) => {
@@ -2162,7 +2209,7 @@ class MainPanel {
 
       if (hit && hit.paretoCat) {
         const cat = hit.paretoCat;
-        const isSN = this.chartMetric === 'uniqueSN';
+        const isSN = this.paretoMetric === 'uniqueSN';
         const metricName = isSN ? 'Unique SNs' : 'Defect Occurrences';
 
         tooltip.innerHTML = `
@@ -2194,8 +2241,10 @@ class MainPanel {
     };
   }
 
-  generateExportCanvas() {
-    const mainCanvas = document.getElementById('timeline-chart-canvas');
+  generateExportCanvas(requestedMode) {
+    const mode = requestedMode || (this.activeTab === 'pareto' ? 'pareto' : 'timeline');
+    const isPareto = mode === 'pareto';
+    const mainCanvas = document.getElementById(isPareto ? 'pareto-chart-canvas' : 'timeline-chart-canvas');
     if (!mainCanvas) return null;
 
     const exportCanvas = document.createElement('canvas');
@@ -2225,7 +2274,7 @@ class MainPanel {
     ctx.font = 'bold 24px Inter, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const titleText = this.chartViewMode === 'pareto' 
+    const titleText = isPareto
       ? 'Benchmark Electronics - Defect Pareto 80/20 Analysis' 
       : 'Benchmark Electronics - Defect Timeline Trend Analysis';
     ctx.fillText(titleText, 40, 24);
@@ -2250,7 +2299,8 @@ class MainPanel {
         trail = parts.join(' ➔ ');
       }
     }
-    const metricLabel = this.chartMetric === 'uniqueSN' ? 'Metric: Unique Board SNs' : 'Metric: Defect Quantity';
+    const currentMetric = isPareto ? this.paretoMetric : this.timelineMetric;
+    const metricLabel = currentMetric === 'uniqueSN' ? 'Metric: Unique Board SNs' : 'Metric: Defect Quantity';
     const dateRange = (window.dataStore && window.dataStore.startDate && window.dataStore.endDate) 
       ? `Date Range: ${window.dataStore.startDate} to ${window.dataStore.endDate}` 
       : 'Date Range: All Time';
@@ -2279,11 +2329,11 @@ class MainPanel {
     return exportCanvas;
   }
 
-  exportChartPNG() {
-    const exportCanvas = this.generateExportCanvas();
+  exportChartPNG(requestedMode) {
+    const mode = requestedMode || (this.activeTab === 'pareto' ? 'pareto' : 'timeline');
+    const exportCanvas = this.generateExportCanvas(mode);
     if (!exportCanvas) return;
 
-    const mode = this.chartViewMode || 'chart';
     const dateStr = new Date().toISOString().slice(0, 10);
     const filename = `Defect_${mode.toUpperCase()}_Analysis_${dateStr}.png`;
 
@@ -2301,8 +2351,9 @@ class MainPanel {
     }, 'image/png');
   }
 
-  async copyChartClipboard() {
-    const exportCanvas = this.generateExportCanvas();
+  async copyChartClipboard(requestedMode) {
+    const mode = requestedMode || (this.activeTab === 'pareto' ? 'pareto' : 'timeline');
+    const exportCanvas = this.generateExportCanvas(mode);
     if (!exportCanvas) return;
 
     if (!navigator.clipboard || !navigator.clipboard.write) {
@@ -2321,11 +2372,11 @@ class MainPanel {
         } catch (err) {
           console.warn('Clipboard write failed:', err);
           this.showToast('⚠️ Could not copy image to clipboard. Downloading PNG instead.');
-          this.exportChartPNG();
+          this.exportChartPNG(mode);
         }
       }, 'image/png');
     } catch (e) {
-      this.exportChartPNG();
+      this.exportChartPNG(mode);
     }
   }
 }

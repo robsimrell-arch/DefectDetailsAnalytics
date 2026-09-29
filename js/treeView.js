@@ -141,12 +141,23 @@ class TreeView {
       const activeRecs = window.dataStore.getActiveRecords();
       const totalMatchCount = activeRecs.length;
       const totalMatchCusts = tree ? tree.length : 0;
+      const target = window.dataStore.searchTarget;
+      const targetLabels = {
+        refDes: 'Ref Des',
+        serialNo: 'Serial Number',
+        defectDescription: 'Defect Description',
+        process: 'Process',
+        failureComments: 'Failure Comments',
+        comments: 'Defect Comments',
+        parts: 'Part Numbers'
+      };
+      const filterLabel = (target && targetLabels[target]) ? `Filtered by ${targetLabels[target]}:` : 'Filtered by:';
 
       html += `
         <div class="search-banner" style="margin-bottom: 0.75rem; padding: 0.6rem 0.75rem; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 6px; font-size: 0.78rem; color: #38bdf8; display: flex; align-items: center; justify-content: space-between;">
           <div>
             <div style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 4px;">
-              <span>🔍 Filtered by:</span> <code style="background: rgba(255,255,255,0.15); padding: 1px 5px; border-radius: 3px; color: #fff;">${this.escapeHtml(query)}</code>
+              <span>🔍 ${filterLabel}</span> <code style="background: rgba(255,255,255,0.15); padding: 1px 5px; border-radius: 3px; color: #fff;">${this.escapeHtml(query)}</code>
             </div>
             <div style="color: #cbd5e1; font-size: 0.72rem; margin-top: 2px;">
               Found <strong>${totalMatchCount.toLocaleString()}</strong> record${totalMatchCount !== 1 ? 's' : ''} across <strong>${totalMatchCusts}</strong> program group${totalMatchCusts !== 1 ? 's' : ''}
