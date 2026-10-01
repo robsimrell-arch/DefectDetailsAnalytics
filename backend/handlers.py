@@ -18,6 +18,7 @@ from .network_utils import (
     find_best_dataset_file,
     get_cached_dataset_body,
     get_dataset_cache_mtime,
+    get_latest_dataset_status,
     update_dataset_cache,
     dataset_lock,
     annotations_lock
@@ -77,12 +78,7 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             data_dir = get_data_dir()
             cfg = get_config()
             is_shared = os.path.exists(os.path.join(data_dir, 'defect_details.json'))
-            cache_mtime = get_dataset_cache_mtime()
-            if cache_mtime > 0:
-                mtime = cache_mtime
-            else:
-                best_file = find_best_dataset_file()
-                mtime = best_file[2] if best_file else 0
+            mtime = get_latest_dataset_status()
 
             res = {
                 "status": "online",
@@ -419,10 +415,12 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                         threading.Thread(target=_bg_network_save, args=(network_dirs,), daemon=True).start()
 
                 print(f"[DATASET SUCCESS] Saved {len(records)} records locally and queued network sync")
+                response_data = json.dumps({"status": "ok", "dataset_updated_at": str(get_dataset_cache_mtime())}).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(response_data)))
                 self.end_headers()
-                self.wfile.write(b'{"status":"ok"}')
+                self.wfile.write(response_data)
                 return
             except Exception as e:
                 print(f"[DATASET ERROR] Failed processing /api/dataset POST: {e}")

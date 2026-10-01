@@ -787,11 +787,17 @@ class DataStore {
       if (res.ok) {
         this.lastSyncTime = new Date();
         this.syncStatus = 'connected';
-        if (this.rawRecords.length > 0) {
+        const respJson = await res.json().catch(() => ({}));
+        if (respJson && respJson.dataset_updated_at) {
+          this.lastDatasetFingerprint = String(respJson.dataset_updated_at);
+        } else if (this.rawRecords.length > 0) {
           this.lastDatasetFingerprint = this.rawRecords.length + '_' + (this.rawRecords[0].serialNo || this.rawRecords[0].id) + '_' + (this.rawRecords[this.rawRecords.length - 1].serialNo || this.rawRecords[this.rawRecords.length - 1].id);
         }
         this.updateSyncBadgeOnly();
         this.idbManager.setCache(this.rawRecords, String(Date.now()), 'latest_records');
+        if (this.syncChannel) {
+          try { this.syncChannel.postMessage('dataset_updated'); } catch (e) {}
+        }
         if (window.mainPanel) {
           window.mainPanel.showToast('✅ Dataset successfully published to network share!');
         }

@@ -11,6 +11,7 @@ if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
 
 echo Copying application files to local C: drive (%TARGET_DIR%)...
 xcopy "%~dp0assets" "%TARGET_DIR%\assets\" /E /Y /I /Q >nul 2>&1
+xcopy "%~dp0backend" "%TARGET_DIR%\backend\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0css" "%TARGET_DIR%\css\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0data" "%TARGET_DIR%\data\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0js" "%TARGET_DIR%\js\" /E /Y /I /Q >nul 2>&1

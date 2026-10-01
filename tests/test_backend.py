@@ -84,6 +84,31 @@ class TestServerEndpoints(unittest.TestCase):
             data = json.loads(resp.read().decode('utf-8'))
             self.assertIsInstance(data, dict)
 
+    def test_status_reports_fresh_dataset_mtime(self):
+        url = f"{self.base_url}/api/status"
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode('utf-8'))
+            self.assertIn('dataset_updated_at', data)
+            # mtime should be a non-empty string representing timestamp
+            self.assertTrue(len(data['dataset_updated_at']) > 0)
+
+    def test_post_dataset_validation(self):
+        url = f"{self.base_url}/api/dataset"
+        # Test empty body rejection
+        req = urllib.request.Request(url, data=b"[]", headers={'Content-Type': 'application/json'}, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                self.fail("Server should reject empty dataset")
+        except urllib.error.HTTPError as e:
+            self.assertEqual(e.code, 500)
+
+        # Test direct cache status function
+        from backend.network_utils import get_latest_dataset_status
+        mtime = get_latest_dataset_status()
+        self.assertGreater(mtime, 0)
+
     def test_static_index_html(self):
         url = f"{self.base_url}/index.html"
         req = urllib.request.Request(url)

@@ -36,6 +36,42 @@ def update_dataset_cache(records, compact_json_bytes, mtime=None):
         dataset_cache_mtime = mtime
         print(f"[RAM CACHE REFRESHED] {len(records)} records (mtime={dataset_cache_mtime})")
 
+_latest_dataset_check_time = 0
+_latest_dataset_file_info = None
+_dataset_check_lock = threading.Lock()
+
+def get_latest_dataset_status():
+    """
+    Returns the authoritative latest dataset timestamp (from RAM cache or disk/network share).
+    Throttled to check disk/network share at most once every 3 seconds to ensure fast responses.
+    If a newer file is detected on disk/network share, asynchronously triggers RAM cache refresh.
+    """
+    global _latest_dataset_check_time, _latest_dataset_file_info
+    now = time.time()
+    cache_mtime = get_dataset_cache_mtime()
+
+    with _dataset_check_lock:
+        if now - _latest_dataset_check_time >= 3 or _latest_dataset_file_info is None:
+            _latest_dataset_check_time = now
+            try:
+                _latest_dataset_file_info = find_best_dataset_file()
+            except Exception as e:
+                print(f"[DATASET CHECK WARNING] Error checking dataset file: {e}")
+
+    disk_mtime = _latest_dataset_file_info[2] if _latest_dataset_file_info else 0
+    effective_mtime = max(cache_mtime, disk_mtime)
+
+    # If disk/network has a newer file than currently loaded in RAM, asynchronously reload in background
+    if disk_mtime > 0 and disk_mtime > cache_mtime + 2:
+        def _bg_reload():
+            try:
+                get_cached_dataset_body()
+            except Exception:
+                pass
+        threading.Thread(target=_bg_reload, daemon=True).start()
+
+    return effective_mtime
+
 
 def check_path_fast(path, timeout=1.5):
     """Fast check for path accessibility with timeout to prevent blocking on dead UNC shares."""

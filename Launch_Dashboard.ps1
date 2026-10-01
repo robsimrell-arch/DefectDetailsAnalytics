@@ -125,7 +125,7 @@ if ($isNetworkShare) {
         }
 
         # Sync web asset folders and portable python runtime (R:1 / W:1 prevents any indefinite retry hangs)
-        foreach ($folder in @("assets", "css", "js", "lib", "runtime")) {
+        foreach ($folder in @("assets", "backend", "css", "js", "lib", "runtime")) {
             $src = Join-Path $ShareDir $folder
             $dst = Join-Path $LocalAppDir $folder
             if (Test-Path $src) {
