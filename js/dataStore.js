@@ -713,6 +713,26 @@ class DataStore {
 
       if (existing) {
         let changed = false;
+        if (rec.failureComment && (!existing.failureComment || rec.failureComment.length > existing.failureComment.length)) {
+          existing.failureComment = rec.failureComment;
+          changed = true;
+        }
+        if (rec.defectComment && (!existing.defectComment || rec.defectComment.length > existing.defectComment.length)) {
+          existing.defectComment = rec.defectComment;
+          changed = true;
+        }
+        if (rec.repairComment && (!existing.repairComment || rec.repairComment.length > existing.repairComment.length)) {
+          existing.repairComment = rec.repairComment;
+          changed = true;
+        }
+        if (rec.failureDescription && !existing.failureDescription) {
+          existing.failureDescription = rec.failureDescription;
+          changed = true;
+        }
+        if (rec.whoFailed && !existing.whoFailed) {
+          existing.whoFailed = rec.whoFailed;
+          changed = true;
+        }
         if (rec.processRecorded && rec.processRecorded !== 'UNSPECIFIED PROCESS' && (!existing.processRecorded || existing.processRecorded === 'UNSPECIFIED PROCESS')) {
           existing.processRecorded = rec.processRecorded;
           changed = true;

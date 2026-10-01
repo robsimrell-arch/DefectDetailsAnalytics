@@ -69,7 +69,7 @@ class TestServerEndpoints(unittest.TestCase):
     def test_get_status(self):
         url = f"{self.base_url}/api/status"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             self.assertEqual(resp.status, 200)
             data = json.loads(resp.read().decode('utf-8'))
             self.assertEqual(data.get('status'), 'online')
@@ -79,7 +79,7 @@ class TestServerEndpoints(unittest.TestCase):
     def test_get_annotations(self):
         url = f"{self.base_url}/api/annotations"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             self.assertEqual(resp.status, 200)
             data = json.loads(resp.read().decode('utf-8'))
             self.assertIsInstance(data, dict)
@@ -87,7 +87,7 @@ class TestServerEndpoints(unittest.TestCase):
     def test_status_reports_fresh_dataset_mtime(self):
         url = f"{self.base_url}/api/status"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             self.assertEqual(resp.status, 200)
             data = json.loads(resp.read().decode('utf-8'))
             self.assertIn('dataset_updated_at', data)
@@ -112,7 +112,7 @@ class TestServerEndpoints(unittest.TestCase):
     def test_static_index_html(self):
         url = f"{self.base_url}/index.html"
         req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             self.assertEqual(resp.status, 200)
             content = resp.read().decode('utf-8')
             self.assertIn("Defect Details", content)

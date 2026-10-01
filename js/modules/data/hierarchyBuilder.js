@@ -65,35 +65,79 @@ class HierarchyBuilder {
     return `${rec.customer} ${rec.parentPartNo} ${rec.processRecorded} ${rec.defectDescription} ${rec.refDes} ${rec.serialNo} ${rec.defectComment} ${rec.failureComment} ${rec.failureDescription} ${rec.repairComment} ${rec.repairDescription} ${rec.fixComment} ${rec.whoFailed} ${rec.debugTech} ${rec.repairTech} ${rec.failureCode} ${rec.defectCode} ${rec.repairCode} ${fixTerms}`.toLowerCase();
   }
 
+  static getField(r, ...aliases) {
+    if (!r || typeof r !== 'object') return '';
+    for (const a of aliases) {
+      if (r[a] !== undefined && r[a] !== null && String(r[a]).trim() !== '') {
+        return String(r[a]).trim();
+      }
+    }
+    const normalizedTargets = aliases.map(a => a.toLowerCase().replace(/[^a-z0-9]/g, ''));
+    for (const key of Object.keys(r)) {
+      const cleanKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (normalizedTargets.includes(cleanKey)) {
+        if (r[key] !== undefined && r[key] !== null && String(r[key]).trim() !== '') {
+          return String(r[key]).trim();
+        }
+      }
+    }
+    return '';
+  }
+
   static normalizeRecord(r, idx) {
-    const parentPart = (r.parentPartNo || r['Parent Part No.'] || r['Parent Part No'] || r['Parent Part Number'] || r['ParentPartNo'] || r['Part Number'] || r['Part No'] || 'UNKNOWN').toString().trim();
-    const refDesRaw = (r.refDes || r['Ref Des'] || r['RefDes'] || r['Reference Designator'] || r['Ref_Des'] || '').toString().trim();
-    const serialNo = (r.serialNo || r['Serial No.'] || r['Serial No'] || r['Serial Number'] || r['SerialNo'] || r['SN'] || '').toString().trim();
-    const faDate = (r.faDate || r['F.A. Date'] || r['FA Date'] || r['Date'] || r['fa_date'] || '').toString().trim();
-    const processRecorded = (r.processRecorded || r['Process Recorded'] || r['Process'] || r['Operation'] || 'UNSPECIFIED PROCESS').toString().trim();
+    const parentPart = HierarchyBuilder.getField(r, 'parentPartNo', 'Parent Part No.', 'Parent Part No', 'Parent Part Number', 'ParentPartNo', 'Part Number', 'Part No') || 'UNKNOWN';
+    const refDesRaw = HierarchyBuilder.getField(r, 'refDes', 'Ref Des', 'RefDes', 'Reference Designator', 'Ref_Des');
+    const serialNo = HierarchyBuilder.getField(r, 'serialNo', 'Serial No.', 'Serial No', 'Serial Number', 'SerialNo', 'SN');
+    const faDate = HierarchyBuilder.getField(r, 'faDate', 'F.A. Date', 'FA Date', 'Date', 'fa_date');
+    const processRecorded = HierarchyBuilder.getField(r, 'processRecorded', 'Process Recorded', 'Process', 'Operation') || 'UNSPECIFIED PROCESS';
     const customer = HierarchyBuilder.deriveCustomer(r, parentPart, serialNo);
+
+    const failureComment = HierarchyBuilder.getField(r,
+      'failureComment', 'Failure Comment', 'Failure Comments', 'Failure_Comment',
+      'Fail Comment', 'Fail Comments', 'Failed Steps', 'Failed Step', 'Test Comment', 'Test Comments',
+      'Failure Details', 'Failure Log', 'Test Failure', 'Fail Details', 'Comment 1'
+    );
+
+    const defectComment = HierarchyBuilder.getField(r,
+      'defectComment', 'Defect Comment', 'Defect Comments', 'Defect_Comment', 'Comment', 'Comments',
+      'Debug Comment', 'Debug Comments', 'Technician Comment', 'Comment 2'
+    );
+
+    const repairComment = HierarchyBuilder.getField(r,
+      'repairComment', 'Repair Comment', 'Repair Comments', 'Repair_Comment', 'Rework Comment', 'Rework Comments'
+    );
+
+    const failureDescription = HierarchyBuilder.getField(r,
+      'failureDescription', 'Failure Description', 'Failure Desc', 'Fail Description', 'Failure Mode'
+    );
+
+    const defectDescription = HierarchyBuilder.getField(r,
+      'defectDescription', 'Defect Description', 'Defect Desc', 'Defect'
+    ) || 'UNSPECIFIED DEFECT';
+
+    const defectQuantity = parseInt(HierarchyBuilder.getField(r, 'defectQuantity', 'Defect Quantity', 'Defect Qty', 'Qty') || 1, 10) || 1;
 
     const rec = {
       id: r.id || (idx + 1),
       customer: customer,
       parentPartNo: parentPart,
-      processRecorded: processRecorded ? processRecorded : 'UNSPECIFIED PROCESS',
+      processRecorded: processRecorded,
       serialNo: serialNo,
       faDate: faDate,
-      whoFailed: (r.whoFailed || r['Who Failed'] || r['Inspector'] || r['Operator'] || '').toString().trim(),
-      failureCode: (r.failureCode || r['Failure Code'] || '').toString().trim(),
-      failureDescription: (r.failureDescription || r['Failure Description'] || '').toString().trim(),
-      failureComment: (r.failureComment || r['Failure Comment'] || '').toString().trim(),
-      defectCode: (r.defectCode || r['Defect Code'] || '').toString().trim(),
-      defectDescription: (r.defectDescription || r['Defect Description'] || r['Defect'] || 'UNSPECIFIED DEFECT').toString().trim(),
-      debugTech: (r.debugTech || r['Debug Tech'] || r['Technician'] || '').toString().trim(),
-      defectComment: (r.defectComment || r['Defect Comment'] || r['Comment'] || '').toString().trim(),
-      defectQuantity: parseInt(r.defectQuantity || r['Defect Quantity'] || r['Defect Qty'] || r['Qty'] || 1, 10) || 1,
+      whoFailed: HierarchyBuilder.getField(r, 'whoFailed', 'Who Failed', 'Inspector', 'Operator'),
+      failureCode: HierarchyBuilder.getField(r, 'failureCode', 'Failure Code'),
+      failureDescription: failureDescription,
+      failureComment: failureComment,
+      defectCode: HierarchyBuilder.getField(r, 'defectCode', 'Defect Code'),
+      defectDescription: defectDescription,
+      debugTech: HierarchyBuilder.getField(r, 'debugTech', 'Debug Tech', 'Technician'),
+      defectComment: defectComment,
+      defectQuantity: defectQuantity,
       refDes: refDesRaw ? refDesRaw : '[Unassigned Ref Des]',
-      repairCode: (r.repairCode || r['Repair Code'] || '').toString().trim(),
-      repairDescription: (r.repairDescription || r['Repair Description'] || '').toString().trim(),
-      repairTech: (r.repairTech || r['Repair Tech'] || '').toString().trim(),
-      repairComment: (r.repairComment || r['Repair Comment'] || '').toString().trim(),
+      repairCode: HierarchyBuilder.getField(r, 'repairCode', 'Repair Code'),
+      repairDescription: HierarchyBuilder.getField(r, 'repairDescription', 'Repair Description'),
+      repairTech: HierarchyBuilder.getField(r, 'repairTech', 'Repair Tech'),
+      repairComment: repairComment,
       confirmedFix: r.confirmedFix || 'Pending',
       fixComment: r.fixComment || '',
       confirmedAt: r.confirmedAt || r.updatedAt || null
