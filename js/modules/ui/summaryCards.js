@@ -109,18 +109,42 @@ class SummaryCards {
 
   renderSolutionPillsHtml() {
     const baseRecs = window.dataStore ? window.dataStore.getBaseFilteredRecords() : [];
-    let yesCount = 0;
-    let noCount = 0;
-    let falseFailCount = 0;
-    let possibleFalseFailCount = 0;
+    const yesSNs = new Set();
+    const noSNs = new Set();
+    const falseFailSNs = new Set();
+    const possibleFalseFailSNs = new Set();
+    const invalidValues = new Set(['', '-', 'N/A', 'NA', 'NONE', '[NONE]', 'UNKNOWN', 'NULL', 'UNDEFINED']);
+
+    let yesRecCount = 0;
+    let noRecCount = 0;
+    let falseFailRecCount = 0;
+    let possibleFalseFailRecCount = 0;
 
     for (let i = 0; i < baseRecs.length; i++) {
-      const fix = baseRecs[i].confirmedFix;
-      if (fix === 'Yes') yesCount++;
-      else if (fix === 'No') noCount++;
-      else if (fix === 'False Fail') falseFailCount++;
-      else if (fix === 'Possible False Fail') possibleFalseFailCount++;
+      const rec = baseRecs[i];
+      const fix = rec.confirmedFix;
+      const sn = (rec.serialNo || '').toString().trim().toUpperCase();
+      const hasValidSn = sn && !invalidValues.has(sn);
+
+      if (fix === 'Yes') {
+        yesRecCount++;
+        if (hasValidSn) yesSNs.add(sn);
+      } else if (fix === 'No') {
+        noRecCount++;
+        if (hasValidSn) noSNs.add(sn);
+      } else if (fix === 'False Fail') {
+        falseFailRecCount++;
+        if (hasValidSn) falseFailSNs.add(sn);
+      } else if (fix === 'Possible False Fail') {
+        possibleFalseFailRecCount++;
+        if (hasValidSn) possibleFalseFailSNs.add(sn);
+      }
     }
+
+    const yesCount = yesSNs.size;
+    const noCount = noSNs.size;
+    const falseFailCount = falseFailSNs.size;
+    const possibleFalseFailCount = possibleFalseFailSNs.size;
 
     const activeFix = window.dataStore ? window.dataStore.fixFilter : 'all';
     const isSyncing = this.kpiSyncState === 'syncing';
@@ -130,11 +154,27 @@ class SummaryCards {
     const syncIcon = isSyncing ? 'loader-2' : 'check';
     const syncIconClass = isSyncing ? 'kpi-spin' : 'kpi-check';
 
+    const yesTitle = activeFix === 'Yes'
+      ? `Active filter: Solution Confirmed (${yesCount.toLocaleString()} Unique SNs across ${yesRecCount.toLocaleString()} Records) - Click to remove filter`
+      : `Filter by Solution Confirmed (Yes) - ${yesCount.toLocaleString()} Unique SNs across ${yesRecCount.toLocaleString()} Records`;
+
+    const noTitle = activeFix === 'No'
+      ? `Active filter: Solution Failed (${noCount.toLocaleString()} Unique SNs across ${noRecCount.toLocaleString()} Records) - Click to remove filter`
+      : `Filter by Solution Failed (No) - ${noCount.toLocaleString()} Unique SNs across ${noRecCount.toLocaleString()} Records`;
+
+    const falseFailTitle = activeFix === 'False Fail'
+      ? `Active filter: Solution False Fail (${falseFailCount.toLocaleString()} Unique SNs across ${falseFailRecCount.toLocaleString()} Records) - Click to remove filter`
+      : `Filter by Solution False Fail - ${falseFailCount.toLocaleString()} Unique SNs across ${falseFailRecCount.toLocaleString()} Records`;
+
+    const possibleFalseFailTitle = activeFix === 'Possible False Fail'
+      ? `Active filter: Solution Possible False Fail (${possibleFalseFailCount.toLocaleString()} Unique SNs across ${possibleFalseFailRecCount.toLocaleString()} Records) - Click to remove filter`
+      : `Filter by Solution Possible False Fail - ${possibleFalseFailCount.toLocaleString()} Unique SNs across ${possibleFalseFailRecCount.toLocaleString()} Records`;
+
     return `
       <button type="button" 
               class="filter-pill emerald ${activeFix === 'Yes' ? 'active' : ''}" 
               onclick="window.mainPanel.toggleFixFilter('Yes')" 
-              title="${activeFix === 'Yes' ? 'Click to show all records' : 'Filter by Solution Confirmed (Yes)'}">
+              title="${yesTitle}">
         <div class="pill-text-stack">
           <div style="display: flex; align-items: center; gap: 4px;">
             <span class="pill-title-main">Solution</span>
@@ -151,7 +191,7 @@ class SummaryCards {
       <button type="button" 
               class="filter-pill rose ${activeFix === 'No' ? 'active' : ''}" 
               onclick="window.mainPanel.toggleFixFilter('No')" 
-              title="${activeFix === 'No' ? 'Click to show all records' : 'Filter by Solution Failed (No)'}">
+              title="${noTitle}">
         <div class="pill-text-stack">
           <span class="pill-title-main">Solution</span>
           <span class="pill-title-sub">Failed</span>
@@ -163,7 +203,7 @@ class SummaryCards {
       <button type="button" 
               class="filter-pill purple ${activeFix === 'False Fail' ? 'active' : ''}" 
               onclick="window.mainPanel.toggleFixFilter('False Fail')" 
-              title="${activeFix === 'False Fail' ? 'Click to show all records' : 'Filter by Solution False Fail'}">
+              title="${falseFailTitle}">
         <div class="pill-text-stack">
           <span class="pill-title-main">Solution</span>
           <span class="pill-title-sub">False Fail</span>
@@ -175,7 +215,7 @@ class SummaryCards {
       <button type="button" 
               class="filter-pill amber ${activeFix === 'Possible False Fail' ? 'active' : ''}" 
               onclick="window.mainPanel.toggleFixFilter('Possible False Fail')" 
-              title="${activeFix === 'Possible False Fail' ? 'Click to show all records' : 'Filter by Solution Possible False Fail'}">
+              title="${possibleFalseFailTitle}">
         <div class="pill-text-stack">
           <span class="pill-title-main">Solution</span>
           <span class="pill-title-sub">Possible False Fail</span>
