@@ -46,6 +46,9 @@ class AnnotationModal {
   renderCommentCardHtml(rec) {
     const fixStatus = rec.confirmedFix || 'Pending';
     const fixComment = rec.fixComment || '';
+    const hasValidSn = (typeof HierarchyBuilder !== 'undefined' && typeof HierarchyBuilder.isValidSerialNo === 'function')
+      ? HierarchyBuilder.isValidSerialNo(rec.serialNo)
+      : Boolean(rec.serialNo && String(rec.serialNo).trim());
 
     return `
       <div class="comment-card" style="margin-bottom: 1rem;">
@@ -54,6 +57,7 @@ class AnnotationModal {
             <span class="tag" style="color: var(--accent-blue); font-weight: 700;">Part: ${this.highlightText(rec.parentPartNo || 'N/A')}</span>
             <span class="tag" style="color: var(--accent-blue); font-weight: 600;">Date: ${this.escapeHtml(rec.faDate || 'N/A')}</span>
             ${rec.serialNo ? `<span class="tag" style="color: var(--accent-amber); font-weight: 600;">SN: ${this.highlightText(rec.serialNo)}</span>` : ''}
+            ${hasValidSn ? `<button type="button" class="btn-pfs-lookup" onclick="event.stopPropagation(); window.mainPanel.openPfsRouteForRecord('${this.safeParam(rec.serialNo)}', '${this.safeParam(rec.parentPartNo)}', '${this.safeParam(rec.faDate)}', '${this.safeParam(rec.refDes)}', '${this.safeParam(rec.defectDescription)}', '${this.safeParam(rec.processRecorded)}')" title="Inspect live PFS route steps, history &amp; active operation for SN ${this.escapeHtml(rec.serialNo)}"><i data-lucide="git-branch" style="width: 12px; height: 12px;"></i> PFS Route</button>` : ''}
             <span class="tag">Ref Des: ${this.highlightText(rec.refDes || 'N/A')}</span>
           </div>
 

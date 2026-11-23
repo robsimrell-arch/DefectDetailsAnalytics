@@ -48,6 +48,10 @@ class MainPanel {
       ? new window.DefectApp.AnnotationModal(this)
       : new AnnotationModal(this);
 
+    this.pfsRouteDrawer = window.DefectApp && window.DefectApp.PfsRouteDrawer
+      ? new window.DefectApp.PfsRouteDrawer(this)
+      : (typeof PfsRouteDrawer !== 'undefined' ? new PfsRouteDrawer(this) : null);
+
     if (window.dataStore) {
       window.dataStore.subscribe(() => this.render());
     }
@@ -297,6 +301,23 @@ class MainPanel {
   openServerSettingsModal() { this.annotationModal.openServerSettingsModal(); }
   closeServerSettingsModal(event) { this.annotationModal.closeServerSettingsModal(event); }
   async saveServerSettings() { return this.annotationModal.saveServerSettings(); }
+
+  // PfsRouteDrawer delegation
+  openPfsRouteForRecord(encSerialNo, encPartNo = '', encFaDate = '', encRefDes = '', encDefectDesc = '', encProcess = '') {
+    if (!this.pfsRouteDrawer) return;
+    this.pfsRouteDrawer.openForRecord(
+      decodeURIComponent(encSerialNo || ''),
+      decodeURIComponent(encPartNo || ''),
+      decodeURIComponent(encFaDate || ''),
+      decodeURIComponent(encRefDes || ''),
+      decodeURIComponent(encDefectDesc || ''),
+      decodeURIComponent(encProcess || '')
+    );
+  }
+  openPfsLoginModal() { if (!this.pfsRouteDrawer) return; this.pfsRouteDrawer.openLoginModal(); }
+  closePfsLoginModal(event) { if (!this.pfsRouteDrawer) return; this.pfsRouteDrawer.closeLoginModal(event); }
+  togglePfsDrawer() { if (!this.pfsRouteDrawer) return; this.pfsRouteDrawer.toggleDrawer(); }
+  closePfsDrawer() { if (!this.pfsRouteDrawer) return; this.pfsRouteDrawer.closeDrawer(); }
 }
 
 if (document.readyState === 'loading') {

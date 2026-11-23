@@ -9,6 +9,10 @@ echo.
 set TARGET_DIR=%LOCALAPPDATA%\DefectAnalysisApp
 if not exist "%TARGET_DIR%" mkdir "%TARGET_DIR%"
 
+echo Stopping any previously running local server...
+powershell -NoProfile -Command "Get-Process -Name 'server' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $PID -and $_.Name -match '^python' -and $_.CommandLine -like '*server.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
+timeout /t 1 /nobreak >nul
+
 echo Copying application files to local C: drive (%TARGET_DIR%)...
 xcopy "%~dp0assets" "%TARGET_DIR%\assets\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0backend" "%TARGET_DIR%\backend\" /E /Y /I /Q >nul 2>&1
@@ -19,6 +23,9 @@ xcopy "%~dp0lib" "%TARGET_DIR%\lib\" /E /Y /I /Q >nul 2>&1
 xcopy "%~dp0runtime" "%TARGET_DIR%\runtime\" /E /Y /I /Q >nul 2>&1
 copy "%~dp0index.html" "%TARGET_DIR%\index.html" /Y >nul 2>&1
 copy "%~dp0server.py" "%TARGET_DIR%\server.py" /Y >nul 2>&1
+if exist "%~dp0version.txt" copy "%~dp0version.txt" "%TARGET_DIR%\version.txt" /Y >nul 2>&1
+if exist "%~dp0Launch_Dashboard.ps1" copy "%~dp0Launch_Dashboard.ps1" "%TARGET_DIR%\Launch_Dashboard.ps1" /Y >nul 2>&1
+if exist "%~dp0Launch_Dashboard.vbs" copy "%~dp0Launch_Dashboard.vbs" "%TARGET_DIR%\Launch_Dashboard.vbs" /Y >nul 2>&1
 if exist "%TARGET_DIR%\server.exe" del /F /Q "%TARGET_DIR%\server.exe" >nul 2>&1
 
 echo.

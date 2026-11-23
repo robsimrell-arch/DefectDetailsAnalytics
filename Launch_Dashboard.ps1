@@ -76,18 +76,35 @@ function Close-Splash() {
     }
 }
 
+$expectedVersion = $null
+$shareVersionFile = Join-Path $ShareDir "version.txt"
+if (Test-Path $shareVersionFile) {
+    try {
+        $expectedVersion = (Get-Content -Path $shareVersionFile -Raw -ErrorAction SilentlyContinue).Trim()
+    } catch {}
+}
+
 $serverAlreadyRunning = $false
 try {
     $res = Invoke-WebRequest 'http://127.0.0.1:8080/api/status' -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
     if ($res.StatusCode -eq 200) {
-        $serverAlreadyRunning = $true
+        $statusJson = $res.Content | ConvertFrom-Json
+        $versionOk = (-not $expectedVersion) -or ($statusJson.app_version -eq $expectedVersion)
+        $pfsOk = ($statusJson.pfs_enabled -eq $true)
+        if ($versionOk -and $pfsOk) {
+            $pfsRes = Invoke-WebRequest 'http://127.0.0.1:8080/api/pfs/sites' -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
+            if ($pfsRes.StatusCode -eq 200) {
+                $serverAlreadyRunning = $true
+            }
+        }
     }
 } catch {}
 
 if (-not $serverAlreadyRunning) {
     try {
         Get-Process -Name "server" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*server.py*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $PID -and $_.Name -match '^python' -and $_.CommandLine -like "*server.py*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Milliseconds 300
     } catch {}
 }
 
@@ -145,14 +162,12 @@ if ($isNetworkShare) {
             }
         }
 
-        $shareIndex = Join-Path $ShareDir "index.html"
-        if (Test-Path $shareIndex) {
-            Copy-Item -Path $shareIndex -Destination (Join-Path $LocalAppDir "index.html") -Force -ErrorAction SilentlyContinue
-        }
-
-        $shareServerPy = Join-Path $ShareDir "server.py"
-        if (Test-Path $shareServerPy) {
-            Copy-Item -Path $shareServerPy -Destination (Join-Path $LocalAppDir "server.py") -Force -ErrorAction SilentlyContinue
+        foreach ($rootFile in @("index.html", "server.py", "version.txt", "Launch_Dashboard.ps1", "Launch_Dashboard.vbs")) {
+            $shareRootFile = Join-Path $ShareDir $rootFile
+            $localRootFile = Join-Path $LocalAppDir $rootFile
+            if ((Test-Path $shareRootFile) -and (-not (Test-Path $localRootFile) -or ((Get-Item $shareRootFile).LastWriteTime -gt (Get-Item $localRootFile).LastWriteTime))) {
+                Copy-Item -Path $shareRootFile -Destination $localRootFile -Force -ErrorAction SilentlyContinue
+            }
         }
 
         # Configure shared_data_dir so local server directly uses shared network drive data

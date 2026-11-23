@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   
   <!-- CSS -->
-  <link rel="stylesheet" href="css/styles.css?v=12.0">
+  <link rel="stylesheet" href="css/styles.css?v=13.0">
   
   <!-- Local Offline JS Libraries -->
   <script src="lib/lucide.min.js"></script>
@@ -43,6 +43,15 @@
       <!-- Live Server Connection Status Badge -->
       <div id="live-sync-badge" class="sync-status-badge"></div>
 
+      <!-- PFS TestLink Connection & Route Drawer Controls -->
+      <div id="pfs-header-controls" class="pfs-header-controls">
+        <button type="button" class="btn btn-sm pfs-header-btn" id="pfs-login-btn" onclick="window.mainPanel.openPfsLoginModal()" title="Configure PFS / TestLink Connection">
+          <span class="pfs-status-dot"></span><span>PFS Login (PFSHSP4)</span>
+        </button>
+        <button type="button" class="btn btn-sm pfs-header-btn pfs-drawer-toggle-btn" id="pfs-drawer-toggle-btn" onclick="window.mainPanel.togglePfsDrawer()" title="Open / Close PFS Route Inspector">
+          <i data-lucide="git-branch" style="width: 14px; height: 14px;"></i> PFS Route
+        </button>
+      </div>
 
       <!-- Theme Toggle -->
       <button class="btn" id="theme-toggle-btn" title="Toggle Dark/Light Mode">
@@ -398,6 +407,12 @@
 
   </div>
 
+  <!-- PFS Route Inspector Slide-Over Drawer -->
+  <aside id="pfs-route-drawer" class="pfs-drawer" aria-label="PFS Route Inspector"></aside>
+
+  <!-- PFS Login & Site Configuration Modal -->
+  <div id="pfs-login-modal" class="lightbox-modal pfs-login-modal" onclick="window.mainPanel.closePfsLoginModal(event)"></div>
+
   <!-- Server & Network Settings Modal -->
   <div id="server-settings-modal" class="lightbox-modal" onclick="window.mainPanel.closeServerSettingsModal(event)">
     <div class="lightbox-container" style="max-width: 580px; width: 90%; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
@@ -569,22 +584,23 @@
   </div>
 
   <!-- Scripts -->
-  <script id="fix-annotations-script" src="data/fix_annotations.js?v=12.0"></script>
+  <script id="fix-annotations-script" src="data/fix_annotations.js?v=13.0"></script>
 
   <!-- Modular Data & UI Layer Modules -->
-  <script src="js/modules/storage/indexedDbManager.js?v=12.0"></script>
-  <script src="js/modules/sync/syncEngine.js?v=12.0"></script>
-  <script src="js/modules/data/hierarchyBuilder.js?v=12.0"></script>
-  <script src="js/modules/data/exportService.js?v=12.0"></script>
-  <script src="js/modules/ui/summaryCards.js?v=12.0"></script>
-  <script src="js/modules/ui/recordsTable.js?v=12.0"></script>
-  <script src="js/modules/ui/chartRenderer.js?v=12.0"></script>
-  <script src="js/modules/ui/annotationModal.js?v=12.0"></script>
+  <script src="js/modules/storage/indexedDbManager.js?v=13.0"></script>
+  <script src="js/modules/sync/syncEngine.js?v=13.0"></script>
+  <script src="js/modules/data/hierarchyBuilder.js?v=13.0"></script>
+  <script src="js/modules/data/exportService.js?v=13.0"></script>
+  <script src="js/modules/ui/summaryCards.js?v=13.0"></script>
+  <script src="js/modules/ui/recordsTable.js?v=13.0"></script>
+  <script src="js/modules/ui/chartRenderer.js?v=13.0"></script>
+  <script src="js/modules/ui/annotationModal.js?v=13.0"></script>
+  <script src="js/modules/ui/pfsRouteDrawer.js?v=13.1"></script>
 
   <!-- Facades & Application Controllers -->
-  <script src="js/dataStore.js?v=12.0"></script>
-  <script src="js/treeView.js?v=12.0"></script>
-  <script src="js/mainPanel.js?v=12.0"></script>
-  <script src="js/app.js?v=12.0"></script>
+  <script src="js/dataStore.js?v=13.0"></script>
+  <script src="js/treeView.js?v=13.0"></script>
+  <script src="js/mainPanel.js?v=13.1"></script>
+  <script src="js/app.js?v=13.0"></script>
 </body>
 </html>

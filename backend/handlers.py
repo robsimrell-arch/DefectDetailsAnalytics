@@ -10,7 +10,7 @@ import threading
 import subprocess
 import http.server
 
-from .config import APP_DIR, DEFAULT_PORT, get_config
+from .config import APP_DIR, APP_VERSION, DEFAULT_PORT, get_config
 from .backup import create_rotating_backup
 from .network_utils import (
     get_data_dir,
@@ -22,6 +22,14 @@ from .network_utils import (
     update_dataset_cache,
     dataset_lock,
     annotations_lock
+)
+from .pfs_client import (
+    PFS_SITES,
+    DEFAULT_SITE_KEY,
+    DEFAULT_PFS_PORT,
+    PfsConnectionError,
+    verify_credentials,
+    analyze_serial_number
 )
 
 class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
@@ -59,6 +67,57 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Expires', '0')
         super().end_headers()
 
+    def _send_json(self, status_code, payload):
+        body = json.dumps(payload).encode('utf-8')
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json_body(self, content_length, max_bytes=64 * 1024):
+        if content_length <= 0 or content_length > max_bytes:
+            self._send_json(413, {"ok": False, "error": f"Payload size must be between 1 and {max_bytes} bytes"})
+            return None
+        raw = self.rfile.read(content_length)
+        try:
+            payload = json.loads(raw.decode('utf-8'))
+            if not isinstance(payload, dict):
+                raise ValueError("JSON body must be an object")
+            return payload
+        except Exception:
+            self._send_json(400, {"ok": False, "error": "Invalid JSON request payload"})
+            return None
+
+    def _parse_pfs_connection_args(self, payload):
+        host = str(payload.get('host', '') or '').strip()
+        database = str(payload.get('database', '') or '').strip()
+        user_id = str(payload.get('userId', '') or '').strip()
+        password = payload.get('password')
+        if password is None:
+            password = ''
+        else:
+            password = str(password)
+
+        raw_port = payload.get('port', DEFAULT_PFS_PORT)
+        try:
+            port = int(raw_port if raw_port not in (None, '') else DEFAULT_PFS_PORT)
+        except (TypeError, ValueError):
+            return None, "Port must be an integer between 1 and 65535."
+        if port < 1 or port > 65535:
+            return None, "Port must be an integer between 1 and 65535."
+
+        if not host or not database or not user_id or not password:
+            return None, "Host, database, userId, and password are required."
+
+        return {
+            "host": host,
+            "port": port,
+            "database": database,
+            "user_id": user_id,
+            "password": password,
+        }, None
+
     def do_OPTIONS(self):
         self.send_response(200)
         self.end_headers()
@@ -82,11 +141,13 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
 
             res = {
                 "status": "online",
+                "app_version": APP_VERSION,
                 "active_data_dir": data_dir,
                 "is_shared_drive": is_shared,
                 "sync_mode": "onedrive_shared_drive" if is_shared else "local_data_dir",
                 "port": cfg.get('port', DEFAULT_PORT),
-                "dataset_updated_at": str(mtime)
+                "dataset_updated_at": str(mtime),
+                "pfs_enabled": True
             }
             body = json.dumps(res, indent=2).encode('utf-8')
             self.send_response(200)
@@ -94,6 +155,14 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+
+        if clean_path == '/api/pfs/sites':
+            self._send_json(200, {
+                "defaultSiteKey": DEFAULT_SITE_KEY,
+                "defaultPort": DEFAULT_PFS_PORT,
+                "sites": PFS_SITES,
+            })
             return
 
         if clean_path == '/api/annotations':
@@ -204,6 +273,65 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
         clean_path = self.path.split('?')[0]
         content_length = int(self.headers.get('Content-Length', 0))
 
+        if clean_path == '/api/pfs/verify':
+            payload = self._read_json_body(content_length)
+            if payload is None:
+                return
+            conn_args, err_msg = self._parse_pfs_connection_args(payload)
+            if err_msg:
+                self._send_json(400, {"ok": False, "error": err_msg})
+                return
+            try:
+                res = verify_credentials(
+                    host=conn_args['host'],
+                    database=conn_args['database'],
+                    user_id=conn_args['user_id'],
+                    password=conn_args['password'],
+                    port=conn_args['port'],
+                )
+                self._send_json(200, res)
+            except PfsConnectionError as exc:
+                self._send_json(502, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                msg = str(exc).replace(conn_args['password'], '***') if conn_args['password'] else str(exc)
+                self._send_json(500, {"ok": False, "error": msg})
+            return
+
+        if clean_path == '/api/pfs/sn-route':
+            payload = self._read_json_body(content_length)
+            if payload is None:
+                return
+            conn_args, err_msg = self._parse_pfs_connection_args(payload)
+            if err_msg:
+                self._send_json(400, {"ok": False, "error": err_msg})
+                return
+            serial_number = str(payload.get('serialNumber', '') or '').strip()
+            if not serial_number:
+                self._send_json(400, {"ok": False, "error": "serialNumber is required."})
+                return
+            item_number = str(payload.get('itemNumber', '') or '').strip()
+            production_order = str(payload.get('productionOrder', '') or '').strip()
+            force_fresh = bool(payload.get('forceFresh', False))
+            try:
+                res = analyze_serial_number(
+                    host=conn_args['host'],
+                    database=conn_args['database'],
+                    user_id=conn_args['user_id'],
+                    password=conn_args['password'],
+                    serial_number=serial_number,
+                    item_number=item_number,
+                    production_order=production_order,
+                    force_fresh=force_fresh,
+                    port=conn_args['port'],
+                )
+                self._send_json(200, res)
+            except PfsConnectionError as exc:
+                self._send_json(502, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                msg = str(exc).replace(conn_args['password'], '***') if conn_args['password'] else str(exc)
+                self._send_json(500, {"ok": False, "error": msg})
+            return
+
         if clean_path == '/api/restart':
             origin = self.headers.get('Origin', '')
             if origin and not (origin.startswith('http://127.0.0.1:') or origin.startswith('http://localhost:')):
@@ -231,6 +359,14 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                 os._exit(0)
 
             threading.Thread(target=do_restart, daemon=True).start()
+            return
+
+        if clean_path == '/api/pfs/sites':
+            self._send_json(200, {
+                "defaultSiteKey": DEFAULT_SITE_KEY,
+                "defaultPort": DEFAULT_PFS_PORT,
+                "sites": PFS_SITES,
+            })
             return
 
         if clean_path == '/api/annotations':
@@ -431,4 +567,4 @@ class LocalHostServerHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(err_msg)
                 return
 
-        super().do_POST()
+        self._send_json(404, {"ok": False, "error": f"Unknown POST endpoint: {clean_path}"})

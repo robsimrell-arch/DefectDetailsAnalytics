@@ -21,7 +21,25 @@ else:
     APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULT_PORT = 8080
+DEFAULT_APP_VERSION = "13.1"
 CONFIG_FILE = os.path.join(APP_DIR, 'data', 'shared_config.json')
+
+
+def _load_app_version():
+    """Loads the deployed UI/backend version string from version.txt."""
+    version_path = os.path.join(APP_DIR, 'version.txt')
+    if os.path.exists(version_path):
+        try:
+            with open(version_path, 'r', encoding='utf-8-sig') as f:
+                val = f.read().strip()
+                if val:
+                    return val
+        except Exception:
+            pass
+    return DEFAULT_APP_VERSION
+
+
+APP_VERSION = _load_app_version()
 
 def get_config():
     """Loads runtime configuration from shared_config.json, with defaults."""

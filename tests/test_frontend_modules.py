@@ -17,6 +17,7 @@ class TestFrontendModules(unittest.TestCase):
         'js/modules/ui/recordsTable.js',
         'js/modules/ui/chartRenderer.js',
         'js/modules/ui/annotationModal.js',
+        'js/modules/ui/pfsRouteDrawer.js',
         'js/dataStore.js',
         'js/treeView.js',
         'js/mainPanel.js',

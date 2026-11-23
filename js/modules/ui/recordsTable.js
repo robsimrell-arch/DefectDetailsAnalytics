@@ -320,12 +320,20 @@ class RecordsTable {
     paginatedRecords.forEach((r, idx) => {
       const fixStatus = r.confirmedFix || 'Pending';
       const fixComment = r.fixComment || '';
+      const hasValidSn = (typeof HierarchyBuilder !== 'undefined' && typeof HierarchyBuilder.isValidSerialNo === 'function')
+        ? HierarchyBuilder.isValidSerialNo(r.serialNo)
+        : Boolean(r.serialNo && String(r.serialNo).trim());
 
       html += `
         <tr class="record-row-clickable" data-row-index="${idx}" ondblclick="window.mainPanel.openRecordCommentsModalByIndex(${idx})" title="Double-click to view all failure, defect, repair comments & solution notes for this record">
           <td><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent-blue);">${this.escapeHtml(r.faDate)}</span></td>
           <td><strong>${this.highlightText(r.parentPartNo)}</strong></td>
-          <td><span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-amber);">${this.highlightText(r.serialNo || '-')}</span></td>
+          <td>
+            <div class="sn-cell-wrapper">
+              <span style="font-family: 'JetBrains Mono', monospace; color: var(--accent-amber);">${this.highlightText(r.serialNo || '-')}</span>
+              ${hasValidSn ? `<button type="button" class="btn-pfs-lookup-sm" onclick="event.stopPropagation(); window.mainPanel.openPfsRouteForRecord('${this.safeParam(r.serialNo)}', '${this.safeParam(r.parentPartNo)}', '${this.safeParam(r.faDate)}', '${this.safeParam(r.refDes)}', '${this.safeParam(r.defectDescription)}', '${this.safeParam(r.processRecorded)}')" ondblclick="event.stopPropagation();" title="Inspect live PFS route &amp; active step for SN ${this.escapeHtml(r.serialNo)}" aria-label="Inspect PFS Route for SN ${this.escapeHtml(r.serialNo)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg></button>` : ''}
+            </div>
+          </td>
           <td><span class="tag" style="background: rgba(56, 189, 248, 0.12); color: #38bdf8; border-color: rgba(56, 189, 248, 0.25); font-weight: 600;">${this.highlightText(r.processRecorded || '-')}</span></td>
           <td>${this.highlightText(r.defectDescription)}</td>
           <td><span class="tag">${this.highlightText(r.refDes)}</span></td>
